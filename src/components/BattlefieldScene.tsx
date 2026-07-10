@@ -29,7 +29,8 @@ interface SoldierSeed {
   firearm: boolean
 }
 
-const SOLDIERS_PER_SIDE = 48
+const SOLDIERS_PER_SIDE = 180
+const FORMATION_COLUMNS = 30
 const BASE_WIDTH = 1000
 const BASE_HEIGHT = 500
 
@@ -39,17 +40,25 @@ function seeded(index: number, salt = 0) {
 }
 
 function makeSoldiers(profile: MilitaryProfile, sideSalt: number): SoldierSeed[] {
+  const mountedCount = Math.round(profile.mountedRatio * SOLDIERS_PER_SIDE * 0.48)
   return Array.from({ length: SOLDIERS_PER_SIDE }, (_, index) => {
-    const row = Math.floor(index / 12)
+    const row = Math.floor(index / FORMATION_COLUMNS)
     return {
       index,
       row,
-      column: index % 12,
+      column: index % FORMATION_COLUMNS,
       variation: seeded(index, sideSalt),
-      mounted: profile.mountedRatio > 0.22 && index % 3 === sideSalt % 3,
+      mounted: index < mountedCount,
       firearm: seeded(index, sideSalt + 8) <= profile.firearmRatio,
     }
   })
+}
+
+function artilleryCount(profile: MilitaryProfile) {
+  if (['britain', 'unitedStates', 'france', 'russia', 'prussia', 'austria', 'egypt', 'sikh'].includes(profile.factionId)) return 4
+  if (['spain', 'portugal', 'netherlands', 'mexico', 'brazil', 'ottoman', 'chile', 'peruBolivia', 'qing', 'japan'].includes(profile.factionId)) return 2
+  if (['maratha', 'burma', 'vietnam', 'siam'].includes(profile.factionId)) return 1
+  return 0
 }
 
 function drawMap(
@@ -318,6 +327,40 @@ function drawHeadgear(
     ctx.fill()
     ctx.fillStyle = profile.trim
     ctx.fillRect(-5.5, -29, 11, 1.5)
+  } else if (type === 'fez') {
+    ctx.fillStyle = '#8d3031'
+    ctx.beginPath()
+    ctx.moveTo(-4.8, -28)
+    ctx.lineTo(-3.5, -36)
+    ctx.lineTo(3.5, -36)
+    ctx.lineTo(4.8, -28)
+    ctx.closePath()
+    ctx.fill()
+    ctx.strokeStyle = '#201b19'
+    ctx.lineWidth = 0.8
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(2.5, -35)
+    ctx.quadraticCurveTo(7, -34, 7, -29)
+    ctx.stroke()
+  } else if (type === 'fur-hat') {
+    ctx.fillStyle = '#272421'
+    ctx.fillRect(-5.2, -38, 10.4, 11)
+    ctx.strokeStyle = '#171513'
+    ctx.strokeRect(-5.2, -38, 10.4, 11)
+  } else if (type === 'jingasa') {
+    ctx.fillStyle = profile.coatSecondary
+    ctx.beginPath()
+    ctx.moveTo(-8, -28)
+    ctx.lineTo(0, -34)
+    ctx.lineTo(8, -28)
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+    ctx.fillStyle = profile.trim
+    ctx.beginPath()
+    ctx.arc(0, -30, 1.4, 0, Math.PI * 2)
+    ctx.fill()
   } else {
     ctx.beginPath()
     ctx.arc(0, -30, 5.7, Math.PI, Math.PI * 2)
@@ -456,6 +499,7 @@ function drawInfantry(
   soldier: SoldierSeed,
   elapsed: number,
   moving: boolean,
+  aiming: boolean,
   casualty: boolean,
 ) {
   const bob = moving ? Math.sin(elapsed / 100 + soldier.index * 1.7) * 1.4 : Math.sin(elapsed / 420 + soldier.index) * 0.5
@@ -526,7 +570,7 @@ function drawInfantry(
   drawHeadgear(ctx, profile.headgear, profile, soldier.variation)
 
   const weapon = soldier.firearm ? profile.primaryWeapon : profile.secondaryWeapon
-  drawWeapon(ctx, weapon, 1, moving, profile)
+  drawWeapon(ctx, weapon, 1, aiming, profile)
   drawShield(ctx, profile, 1, soldier.variation)
 
   ctx.restore()
@@ -577,7 +621,7 @@ function drawMounted(
   ctx.lineTo(-23, -17)
   ctx.stroke()
   ctx.restore()
-  drawInfantry(ctx, x, groundY - 15 * scale, scale * 0.83, facing, profile, soldier, elapsed, moving, false)
+  drawInfantry(ctx, x, groundY - 15 * scale, scale * 0.83, facing, profile, soldier, elapsed, moving, false, false)
 }
 
 function drawSmoke(
@@ -619,6 +663,195 @@ function drawMuzzleFlash(ctx: CanvasRenderingContext2D, x: number, y: number, fa
   ctx.restore()
 }
 
+function drawGunCrew(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  profile: MilitaryProfile,
+  index: number,
+  working: boolean,
+) {
+  const bend = working ? Math.sin(index * 2.4) * 2 : 0
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.fillStyle = profile.trousers
+  ctx.fillRect(-2, -8, 2, 9)
+  ctx.fillRect(2, -8, 2, 9)
+  ctx.fillStyle = index % 2 ? profile.coatSecondary : profile.coat
+  ctx.beginPath()
+  ctx.moveTo(-5, -21 + bend)
+  ctx.lineTo(5, -21 + bend)
+  ctx.lineTo(6, -8)
+  ctx.lineTo(-6, -8)
+  ctx.closePath()
+  ctx.fill()
+  ctx.strokeStyle = profile.trim
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.moveTo(-4, -19 + bend)
+  ctx.lineTo(4, -10)
+  ctx.stroke()
+  ctx.fillStyle = profile.skinTones[index % profile.skinTones.length]
+  ctx.beginPath()
+  ctx.arc(0, -25 + bend, 4.2, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.scale(0.82, 0.82)
+  drawHeadgear(ctx, profile.headgear, profile, seeded(index, 77))
+  ctx.restore()
+}
+
+function drawCannon(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  groundY: number,
+  facing: number,
+  profile: MilitaryProfile,
+  index: number,
+  elapsed: number,
+  phase: ScenePhase,
+  effectsEnabled: boolean,
+) {
+  const fireCycle = (elapsed / 2300 + index * 0.23 + (facing > 0 ? 0 : 0.4)) % 1
+  const firing = phase === 'engaging' && fireCycle < 0.06
+  const recoil = firing ? 8 * (1 - fireCycle / 0.06) : 0
+
+  ctx.save()
+  ctx.translate(x - facing * recoil, groundY)
+  ctx.scale(facing, 1)
+
+  ctx.strokeStyle = '#332b24'
+  ctx.lineWidth = 2.5
+  ctx.beginPath()
+  ctx.moveTo(-14, -5)
+  ctx.lineTo(-25, 5)
+  ctx.moveTo(-8, -5)
+  ctx.lineTo(-16, 8)
+  ctx.stroke()
+
+  ctx.fillStyle = '#5b3a23'
+  ctx.beginPath()
+  ctx.moveTo(-17, -9)
+  ctx.lineTo(10, -8)
+  ctx.lineTo(13, 0)
+  ctx.lineTo(-20, 0)
+  ctx.closePath()
+  ctx.fill()
+  ctx.strokeStyle = '#2b211b'
+  ctx.lineWidth = 1.2
+  ctx.stroke()
+
+  for (const wheelX of [-11, 7]) {
+    ctx.fillStyle = '#4a3121'
+    ctx.strokeStyle = '#231c18'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(wheelX, 0, 9, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.stroke()
+    ctx.strokeStyle = '#8b6a42'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(wheelX - 7, 0)
+    ctx.lineTo(wheelX + 7, 0)
+    ctx.moveTo(wheelX, -7)
+    ctx.lineTo(wheelX, 7)
+    ctx.stroke()
+  }
+
+  ctx.strokeStyle = '#20282a'
+  ctx.lineWidth = 7
+  ctx.lineCap = 'round'
+  ctx.beginPath()
+  ctx.moveTo(3, -12)
+  ctx.lineTo(35, -15)
+  ctx.stroke()
+  ctx.strokeStyle = '#687171'
+  ctx.lineWidth = 1.4
+  ctx.beginPath()
+  ctx.moveTo(4, -15)
+  ctx.lineTo(35, -18)
+  ctx.stroke()
+  ctx.fillStyle = '#161d1e'
+  ctx.beginPath()
+  ctx.ellipse(36, -15, 3.5, 5.4, 0, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.restore()
+
+  drawGunCrew(ctx, x - facing * 21, groundY - 2, profile, index * 3, phase === 'engaging')
+  drawGunCrew(ctx, x - facing * 5, groundY - 12, profile, index * 3 + 1, phase === 'engaging')
+  drawGunCrew(ctx, x + facing * 13, groundY - 1, profile, index * 3 + 2, phase === 'engaging')
+
+  if (effectsEnabled && phase === 'engaging') {
+    const muzzleX = x + facing * (36 - recoil)
+    const muzzleY = groundY - 15
+    if (fireCycle < 0.44) {
+      drawSmoke(ctx, muzzleX, muzzleY, fireCycle / 0.44, facing, true)
+      if (fireCycle < 0.035) drawMuzzleFlash(ctx, muzzleX, muzzleY, facing)
+    }
+    if (fireCycle > 0.06 && fireCycle < 0.32) {
+      const travel = (fireCycle - 0.06) / 0.26
+      const ballX = muzzleX + facing * travel * 330
+      const ballY = muzzleY - Math.sin(travel * Math.PI) * 34
+      ctx.fillStyle = '#171b1b'
+      ctx.beginPath()
+      ctx.arc(ballX, ballY, 2.8, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.strokeStyle = 'rgba(221, 211, 185, .25)'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(ballX - facing * 15, ballY + 2)
+      ctx.lineTo(ballX, ballY)
+      ctx.stroke()
+    }
+  }
+}
+
+function drawArtilleryBattery(
+  ctx: CanvasRenderingContext2D,
+  profile: MilitaryProfile,
+  side: 'player' | 'opponent',
+  elapsed: number,
+  phase: ScenePhase,
+  effectsEnabled: boolean,
+) {
+  const count = artilleryCount(profile)
+  if (!count) return
+  const facing = side === 'player' ? 1 : -1
+  const baseX = side === 'player' ? 384 : 616
+  for (let gun = 0; gun < count; gun += 1) {
+    const y = 245 + gun * (count >= 4 ? 43 : 65)
+    drawCannon(ctx, baseX, y, facing, profile, gun, elapsed, phase, effectsEnabled)
+  }
+}
+
+function drawRegimentalStandard(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  facing: number,
+  profile: MilitaryProfile,
+  elapsed: number,
+) {
+  const wave = Math.sin(elapsed / 280) * 2
+  ctx.strokeStyle = '#3d2e20'
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.moveTo(x, y)
+  ctx.lineTo(x, y - 54)
+  ctx.stroke()
+  ctx.fillStyle = profile.coat
+  ctx.strokeStyle = profile.trim
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.moveTo(x, y - 52)
+  ctx.quadraticCurveTo(x + facing * 15, y - 58 + wave, x + facing * 29, y - 50)
+  ctx.lineTo(x + facing * 28, y - 32)
+  ctx.quadraticCurveTo(x + facing * 14, y - 38 + wave, x, y - 34)
+  ctx.closePath()
+  ctx.fill()
+  ctx.stroke()
+}
+
 function drawBloodDecals(ctx: CanvasRenderingContext2D, count: number, intensity: number) {
   ctx.save()
   ctx.globalAlpha = 0.45 * intensity
@@ -649,28 +882,73 @@ function drawFormation(
   effectsEnabled: boolean,
 ) {
   const facing = side === 'player' ? 1 : -1
-  const phaseProgress = phase === 'engaging' ? Math.min(1, elapsed / 3800) : 0
-  const baseX = side === 'player' ? 92 : 908
+  const phaseProgress = phase === 'engaging' ? Math.min(1, elapsed / 5200) : 0
+  const baseX = side === 'player' ? 62 : 938
   const direction = side === 'player' ? 1 : -1
+  const isZulu = profile.factionId === 'zulu'
+  const mountedCount = soldiers.filter((soldier) => soldier.mounted).length
 
-  soldiers
-    .slice()
-    .sort((a, b) => a.row - b.row)
-    .forEach((soldier) => {
-      const rowSpread = plan === 'adapt' && soldier.row < 2 ? 18 : 0
-      const columnDepth = soldier.column * 22
-      const flank = plan === 'adapt' ? (soldier.row % 2 ? 1 : -1) * phaseProgress * 26 : 0
-      const advance = phase === 'engaging'
-        ? phaseProgress * (side === 'player' ? (plan === 'advance' ? 185 : 135) : 105)
-        : 0
-      const x = baseX + direction * columnDepth + direction * advance + flank
-      const groundY = 305 + soldier.row * 43 + (soldier.column % 2) * 2 + rowSpread
-      const scale = 0.64 + soldier.row * 0.095
+  const positioned = soldiers.map((soldier) => {
+    let columnDepth = 0
+    let groundY = 0
+    let scale = 0.6
+
+    if (isZulu && soldier.index >= 120) {
+      const hornIndex = soldier.index - 120
+      const wing = hornIndex < 30 ? -1 : 1
+      const indexInWing = hornIndex % 30
+      const hornRank = Math.floor(indexInWing / 10)
+      const hornColumn = indexInWing % 10
+      columnDepth = 250 + hornColumn * 10 + hornRank * 12
+      groundY = 350 + wing * (64 + hornRank * 28 + hornColumn * 2.1)
+      scale = 0.55 + hornRank * 0.05
+    } else if (isZulu) {
+      const centerRow = Math.floor(soldier.index / 24)
+      const centerColumn = soldier.index % 24
+      columnDepth = centerColumn * 12
+      groundY = 296 + centerRow * 31
+      scale = 0.52 + centerRow * 0.055
+    } else if (soldier.mounted) {
+      const wing = soldier.index % 2 === 0 ? -1 : 1
+      const wingIndex = Math.floor(soldier.index / 2)
+      const wingRow = Math.floor(wingIndex / 20)
+      const wingColumn = wingIndex % 20
+      columnDepth = wingColumn * 13
+      groundY = 352 + wing * (70 + wingRow * 31)
+      scale = 0.56 + wingRow * 0.05
+    } else {
+      const footIndex = soldier.index - mountedCount
+      const footRow = Math.max(0, Math.floor(footIndex / FORMATION_COLUMNS))
+      const footColumn = ((footIndex % FORMATION_COLUMNS) + FORMATION_COLUMNS) % FORMATION_COLUMNS
+      columnDepth = footColumn * 9.6
+      groundY = 292 + footRow * 28
+      scale = 0.48 + footRow * 0.052
+    }
+
+    const rowAdvance = isZulu
+      ? phaseProgress * (plan === 'advance' ? 255 : 205)
+      : phaseProgress * (side === 'player' ? (plan === 'advance' ? 165 : 125) : 112)
+    const wingSurge = isZulu && soldier.index >= 120 ? phaseProgress * 52 : 0
+    const x = baseX + direction * (columnDepth + rowAdvance + wingSurge)
+
+    return { soldier, x, groundY, scale }
+  })
+
+  positioned
+    .sort((left, right) => left.groundY - right.groundY)
+    .forEach(({ soldier, x, groundY, scale }) => {
       const casualty =
         phase === 'engaging' &&
-        phaseProgress > 0.52 &&
-        ((soldier.index + (side === 'player' ? 2 : 0)) % (side === 'player' ? 13 : 11) === 0)
-      const moving = phase === 'engaging' && phaseProgress < 0.82
+        phaseProgress > 0.48 &&
+        ((soldier.index + (side === 'player' ? 3 : 0)) % (side === 'player' ? 29 : 23) === 0)
+      const volleyCycle =
+        (elapsed / 2050 + soldier.row * 0.12 + soldier.column * 0.002 + (side === 'player' ? 0 : 0.48)) % 1
+      const aiming = phase === 'engaging' && soldier.firearm && (volleyCycle < 0.15 || volleyCycle > 0.78)
+      const moving =
+        phase === 'engaging' &&
+        phaseProgress < 0.9 &&
+        (isZulu || soldier.mounted || elapsed > 1450) &&
+        !aiming
 
       ctx.fillStyle = 'rgba(5, 15, 13, .32)'
       ctx.beginPath()
@@ -680,19 +958,26 @@ function drawFormation(
       if (soldier.mounted && !casualty) {
         drawMounted(ctx, x, groundY, scale, facing, profile, soldier, elapsed, moving)
       } else {
-        drawInfantry(ctx, x, groundY, scale, facing, profile, soldier, elapsed, moving, casualty)
+        drawInfantry(ctx, x, groundY, scale, facing, profile, soldier, elapsed, moving, aiming, casualty)
       }
 
       if (effectsEnabled && soldier.firearm && !casualty) {
-        const shotCycle = (elapsed / (phase === 'engaging' ? 1050 : 5200) + soldier.index * 0.173 + (side === 'player' ? 0 : 0.43)) % 1
-        if (shotCycle < 0.38 && (phase === 'engaging' || soldier.index % 8 === 0)) {
+        const shotCycle =
+          phase === 'engaging'
+            ? volleyCycle
+            : (elapsed / 6200 + soldier.index * 0.071 + (side === 'player' ? 0 : 0.43)) % 1
+        if (shotCycle < 0.32 && (phase === 'engaging' || soldier.index % 18 === 0)) {
           const muzzleX = x + facing * 18 * scale
           const muzzleY = groundY - 20 * scale
-          drawSmoke(ctx, muzzleX, muzzleY, shotCycle / 0.38, facing, phase === 'engaging')
+          drawSmoke(ctx, muzzleX, muzzleY, shotCycle / 0.32, facing, phase === 'engaging')
           if (shotCycle < 0.035 && phase === 'engaging') drawMuzzleFlash(ctx, muzzleX, muzzleY, facing)
         }
       }
     })
+
+  const standardY = isZulu ? 366 : 316
+  const standardX = baseX + direction * (isZulu ? 145 : 135) + direction * phaseProgress * 120
+  drawRegimentalStandard(ctx, standardX, standardY, facing, profile, elapsed)
 }
 
 export function BattlefieldScene({
@@ -742,11 +1027,13 @@ export function BattlefieldScene({
       drawMap(context, mapKind, elapsed)
 
       if (effectsEnabled) {
-        drawBloodDecals(context, phase === 'engaging' ? 9 : 3, phase === 'engaging' ? Math.min(1, elapsed / 1700) : 0.35)
+        drawBloodDecals(context, phase === 'engaging' ? 18 : 3, phase === 'engaging' ? Math.min(1, elapsed / 1900) : 0.35)
       }
 
       drawFormation(context, opponentSoldiers, opponentProfile, 'opponent', elapsed, phase, plan, effectsEnabled)
+      drawArtilleryBattery(context, opponentProfile, 'opponent', elapsed, phase, effectsEnabled)
       drawFormation(context, playerSoldiers, playerProfile, 'player', elapsed, phase, plan, effectsEnabled)
+      drawArtilleryBattery(context, playerProfile, 'player', elapsed, phase, effectsEnabled)
 
       const vignette = context.createRadialGradient(500, 270, 170, 500, 270, 620)
       vignette.addColorStop(0, 'rgba(5, 13, 13, 0)')
@@ -775,7 +1062,7 @@ export function BattlefieldScene({
 
   const sceneStatus =
     phase === 'engaging'
-      ? 'Volleys exchanged · formations advancing'
+      ? 'Artillery firing · line volleys · formations advancing'
       : phase === 'parley'
         ? 'Delegations moving to neutral ground'
         : 'Forces deployed · awaiting orders'
@@ -792,7 +1079,25 @@ export function BattlefieldScene({
         {sceneStatus}
       </div>
       <div className="battle-scene__count">
-        <span>{SOLDIERS_PER_SIDE * 2}</span> animated soldiers
+        <span>{SOLDIERS_PER_SIDE * 2}</span> rendered soldiers
+        <b> · {artilleryCount(playerProfile) + artilleryCount(opponentProfile)} field guns</b>
+      </div>
+      <div className={`battle-scene__phases ${phase === 'engaging' ? 'is-live' : ''}`} aria-hidden="true">
+        <span>DEPLOY</span>
+        <span>ARTILLERY</span>
+        <span>VOLLEYS</span>
+        <span>CHARGE</span>
+        <i />
+      </div>
+      <div className="battle-scene__formation battle-scene__formation--player">
+        {playerProfile.factionId === 'zulu'
+          ? '6 amabutho · horns formation'
+          : `${artilleryCount(playerProfile) || 'No'} guns · ${Math.round(playerProfile.firearmRatio * 100)}% firearms`}
+      </div>
+      <div className="battle-scene__formation battle-scene__formation--opponent">
+        {opponentProfile.factionId === 'zulu'
+          ? '6 amabutho · shield & iklwa'
+          : `${artilleryCount(opponentProfile) || 'No'} guns · ${Math.round(opponentProfile.firearmRatio * 100)}% firearms`}
       </div>
       <div className="battle-scene__faction battle-scene__faction--player">
         <i style={{ background: factions[playerFactionId]?.color }} />

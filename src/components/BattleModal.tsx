@@ -202,7 +202,7 @@ export function BattleModal({ region, playerFactionId, resources, onClose, onRes
         }
     resolutionRef.current = { result, plan: selectedPlan }
     setBattlePhase('engaging')
-    resolutionTimerRef.current = window.setTimeout(completeResolution, 3900)
+    resolutionTimerRef.current = window.setTimeout(completeResolution, 5600)
   }
 
   return (
@@ -234,14 +234,14 @@ export function BattleModal({ region, playerFactionId, resources, onClose, onRes
               <small>{playerFaction.kind === 'sovereign' ? 'Sovereign field force' : 'Campaign force'}</small>
               <strong>{playerProfile.forceName}</strong>
             </div>
-            <span className="army-strength"><Users size={14} /> {Math.round(5600 + resources.supply * 40).toLocaleString()}</span>
+            <span className="army-strength"><Users size={14} /> {Math.round(12000 + resources.supply * 90).toLocaleString()}</span>
           </div>
           <div className="battle-versus">
             <Swords size={17} />
             <span>ENGAGED</span>
           </div>
           <div className="army-heading army-heading--opponent">
-            <span className="army-strength"><Users size={14} /> {Math.round(region.garrison * 105).toLocaleString()}</span>
+            <span className="army-strength"><Users size={14} /> {Math.round(region.garrison * 180).toLocaleString()}</span>
             <div>
               <small>Defending field force</small>
               <strong>{opponent.name}</strong>
@@ -332,8 +332,22 @@ export function BattleModal({ region, playerFactionId, resources, onClose, onRes
                     <span className="plan-card__icon"><Icon size={19} /></span>
                     <span className="plan-card__copy">
                       <small>{plan.eyebrow}</small>
-                      <strong>{plan.name}</strong>
-                      <span>{plan.description}</span>
+                      <strong>
+                        {plan.id === 'advance'
+                          ? playerFactionId === 'zulu'
+                            ? 'Horns of the buffalo'
+                            : playerProfile.firearmRatio >= 0.75
+                              ? 'Bombard & line advance'
+                              : plan.name
+                          : plan.name}
+                      </strong>
+                      <span>
+                        {plan.id === 'advance' && playerFactionId === 'zulu'
+                          ? 'Fix the center, sweep both horns around the flanks, and close behind the shields.'
+                          : plan.id === 'advance' && playerProfile.firearmRatio >= 0.75
+                            ? 'Open with the main guns, advance in dressed lines, and fire controlled volleys.'
+                            : plan.description}
+                      </span>
                       <em className={modifiers[plan.id] >= 0 ? 'is-positive' : 'is-negative'}>
                         {modifiers[plan.id] >= 0 ? '+' : ''}{modifiers[plan.id]} local modifier
                       </em>
