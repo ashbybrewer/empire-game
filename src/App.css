@@ -1,0 +1,137 @@
+.app {
+  width: 100%;
+  max-width: 640px;
+  padding: 2rem 1.5rem 3rem;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 2.4rem;
+  color: #f2c14e;
+  letter-spacing: 0.02em;
+}
+
+.tagline {
+  margin: 0.25rem 0 0;
+  color: #c9bfa6;
+}
+
+.resources {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.resource {
+  background: #2c2110;
+  border: 1px solid #4a3a1c;
+  border-radius: 10px;
+  padding: 0.9rem;
+  text-align: center;
+}
+
+.resource-label {
+  display: block;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #c9bfa6;
+}
+
+.resource-value {
+  display: block;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #f2c14e;
+}
+
+.gather {
+  width: 100%;
+  padding: 0.9rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1a1207;
+  background: linear-gradient(180deg, #f6d372, #e0a92e);
+  border: none;
+  border-radius: 10px;
+  margin-bottom: 1.75rem;
+}
+
+.gather:hover {
+  filter: brightness(1.05);
+}
+
+.buildings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.building {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: #241a0d;
+  border: 1px solid #4a3a1c;
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+}
+
+.building-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.building-name {
+  font-weight: 600;
+  color: #f5f3e8;
+}
+
+.building-count {
+  margin-left: 0.4rem;
+  color: #f2c14e;
+}
+
+.building-desc {
+  font-size: 0.85rem;
+  color: #c9bfa6;
+}
+
+.buy {
+  white-space: nowrap;
+  padding: 0.6rem 0.9rem;
+  font-weight: 600;
+  color: #f5f3e8;
+  background: #6b4e1e;
+  border: 1px solid #8a6626;
+  border-radius: 8px;
+}
+
+.buy:hover:not(:disabled) {
+  background: #7d5c25;
+}
+
+.footer {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.reset {
+  padding: 0.5rem 1rem;
+  color: #c9bfa6;
+  background: transparent;
+  border: 1px solid #4a3a1c;
+  border-radius: 8px;
+}
+
+.reset:hover {
+  color: #f5f3e8;
+  border-color: #8a6626;
+}
