@@ -2226,6 +2226,17 @@ button:focus-visible,
   animation: fade-in 180ms ease-out;
 }
 
+.battle-loading {
+  padding: 16px 22px;
+  border: 1px solid rgba(201, 167, 98, 0.42);
+  color: #dfcca0;
+  background: #142425;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 18px;
+  letter-spacing: 0.05em;
+  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.45);
+}
+
 .battle-modal {
   width: min(1360px, 97vw);
   height: min(810px, 95vh);

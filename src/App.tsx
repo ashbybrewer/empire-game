@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Anchor,
   Bell,
@@ -30,7 +30,6 @@ import {
   X,
 } from 'lucide-react'
 import { campaignPresets, defaultCampaign } from './campaigns'
-import { BattleModal } from './components/BattleModal'
 import { WorldMap } from './components/WorldMap'
 import { factions, regions as initialRegions } from './data'
 import type {
@@ -45,6 +44,10 @@ import type {
 import './styles.css'
 
 type View = 'campaign' | 'diplomacy' | 'ledger' | 'military'
+
+const BattleModal = lazy(() =>
+  import('./components/BattleModal').then((module) => ({ default: module.BattleModal })),
+)
 
 const seasons = ['Spring', 'Summer', 'Autumn', 'Winter']
 
@@ -904,13 +907,15 @@ function App() {
       )}
 
       {battleRegion && (
-        <BattleModal
-          region={battleRegion}
-          playerFactionId={playerFactionId}
-          resources={{ supply: resources.supply, influence: resources.influence }}
-          onClose={() => setBattleRegion(null)}
-          onResolve={resolveBattle}
-        />
+        <Suspense fallback={<div className="battle-overlay"><div className="battle-loading">Mobilizing field armies…</div></div>}>
+          <BattleModal
+            region={battleRegion}
+            playerFactionId={playerFactionId}
+            resources={{ supply: resources.supply, influence: resources.influence }}
+            onClose={() => setBattleRegion(null)}
+            onResolve={resolveBattle}
+          />
+        </Suspense>
       )}
 
       {battleResult && (
