@@ -148,7 +148,7 @@ export function WorldMap({
         <path className="atlas-ocean-lines" d={makePath(sphere) ?? ''} />
         <path className="atlas-graticule" d={makePath(graticule) ?? ''} />
 
-        <g filter="url(#atlasLandShadow)">
+        <g>
           <path className="atlas-land" d={makePath(landFeature) ?? ''} />
         </g>
 
