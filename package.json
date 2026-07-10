@@ -5,8 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "npm run check && vite build",
+    "check": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
     "preview": "vite preview"
+  },
+  "engines": {
+    "node": ">=20.19.0"
   },
   "repository": {
     "type": "git",
