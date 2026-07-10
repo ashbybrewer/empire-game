@@ -229,7 +229,20 @@ export function WorldMap({
             const geography = regionGeography[region.id]
             const point = geography ? projection(geography.label) : null
             if (!point) return null
-            const isCompact = ['british-isles', 'france', 'iberia', 'gold-coast', 'zulu-kingdom', 'java'].includes(region.id)
+            const isCompact = [
+              'british-isles',
+              'france',
+              'iberia',
+              'spain',
+              'prussia',
+              'austrian-empire',
+              'gold-coast',
+              'dahomey',
+              'zulu-kingdom',
+              'java',
+              'siam',
+              'dai-nam',
+            ].includes(region.id)
             return (
               <g
                 key={`label-${region.id}`}

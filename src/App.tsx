@@ -214,6 +214,37 @@ function App() {
     showToast(`Now leading ${factions[campaign.factionId].name}`)
   }
 
+  const leadSelectedNation = () => {
+    const faction = selectedFaction
+    const sandboxCampaign: CampaignPreset = {
+      id: `sandbox-${faction.id}`,
+      factionId: faction.id,
+      title: `${faction.shortName} Ascendant`,
+      subtitle: `Open campaign · ${currentYear}`,
+      startYear: currentYear,
+      homeRegionId: selected.id,
+      treasuryLabel: faction.kind === 'sovereign' ? 'NATIONAL STORES' : 'TREASURY',
+      treasuryPrefix: faction.id === 'unitedStates' ? '$' : faction.kind === 'imperial' ? '£' : '',
+      legitimacyLabel: faction.kind === 'sovereign' ? 'COHESION' : 'LEGITIMACY',
+      resources: {
+        treasury: Math.round(1450 + selected.prosperity * 12),
+        supply: Math.min(92, 48 + Math.round(selected.garrison / 2)),
+        influence: Math.min(90, 36 + Math.round(selected.prosperity / 2)),
+        legitimacy: Math.min(94, 55 + Math.round(selected.resistance / 3)),
+      },
+      tradePartners: [],
+      rivalIds: [playerFactionId, ...activeCampaign.rivalIds.filter((id) => id !== faction.id)].slice(0, 3),
+      objectiveTitle: 'Regional ascendancy',
+      objectiveBody: `Control three regions in ${selected.theater}`,
+      objectiveTarget: 3,
+      objectiveMetric: 'regions',
+      doctrine: selected.doctrineDetail,
+      campaignSummary: `Lead ${faction.name} in an open campaign beginning from ${selected.name}. Diplomacy, trade, and conquest remain fully available.`,
+      warActionLabel: faction.kind === 'sovereign' ? 'Muster field host' : 'Plan campaign',
+    }
+    selectCampaign(sandboxCampaign)
+  }
+
   const handleTrade = () => {
     if (hasTradeAccord) {
       showToast('A reciprocal trade accord is already active.')
@@ -777,6 +808,10 @@ function App() {
                       <Swords size={15} /> {canProjectPower ? activeCampaign.warActionLabel : 'No route'}
                     </button>
                   </div>
+                  <button className="secondary-action lead-nation-action" onClick={leadSelectedNation}>
+                    {selectedFaction.kind === 'sovereign' ? <Shield size={14} /> : <Crown size={14} />}
+                    Lead {selectedFaction.shortName}
+                  </button>
                 </>
               )}
             </section>
@@ -823,6 +858,9 @@ function App() {
             <p className="brief-lead">
               Lead the United States through Manifest Destiny, compete as a colonial empire, or command a sovereign
               Indigenous nation resisting dispossession. Every campaign has its own economy, doctrine, dress, and weapons.
+            </p>
+            <p className="campaign-picker-note">
+              Eight authored campaigns are shown below. To play any other atlas nation, select its territory and choose “Lead this nation.”
             </p>
             <div className="campaign-picker">
               {campaignPresets.map((campaign) => {

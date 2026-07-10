@@ -1739,6 +1739,19 @@ button:focus-visible,
   background: rgba(183, 92, 79, 0.08);
 }
 
+.lead-nation-action {
+  width: 100%;
+  margin-top: 7px;
+  color: #b8a574;
+  border-color: rgba(201, 167, 98, 0.22);
+}
+
+.lead-nation-action:hover {
+  color: #e2ca88;
+  border-color: rgba(201, 167, 98, 0.5);
+  background: rgba(201, 167, 98, 0.07);
+}
+
 .panel-note {
   display: flex;
   align-items: flex-start;
@@ -1983,6 +1996,15 @@ button:focus-visible,
   font-family: 'Cormorant Garamond', Georgia, serif;
   font-size: 16px;
   line-height: 1.42;
+}
+
+.campaign-picker-note {
+  max-width: 650px;
+  margin: 9px auto 0;
+  color: #8f8059;
+  font-size: 7px;
+  line-height: 1.4;
+  text-align: center;
 }
 
 .campaign-picker {
@@ -2532,6 +2554,72 @@ button:focus-visible,
   color: #dfc47f;
   font-size: 8px;
   font-weight: 700;
+}
+
+.battle-scene__count b {
+  color: #b88a6d;
+  font-size: 6px;
+  font-weight: 600;
+}
+
+.battle-scene__phases {
+  position: absolute;
+  z-index: 5;
+  top: 11px;
+  left: 50%;
+  width: 282px;
+  height: 24px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  align-items: center;
+  padding: 0 8px 3px;
+  border: 1px solid rgba(225, 218, 190, 0.17);
+  color: #758781;
+  background: rgba(8, 21, 21, 0.72);
+  font-size: 5.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: center;
+  transform: translateX(-50%);
+  backdrop-filter: blur(4px);
+}
+
+.battle-scene__phases i {
+  position: absolute;
+  right: 8px;
+  bottom: 3px;
+  left: 8px;
+  height: 1px;
+  background: linear-gradient(90deg, #c4a158, #bd674f);
+  transform: scaleX(0.05);
+  transform-origin: left;
+}
+
+.battle-scene__phases.is-live i {
+  animation: battle-timeline 5.2s linear forwards;
+}
+
+@keyframes battle-timeline {
+  to { transform: scaleX(1); }
+}
+
+.battle-scene__formation {
+  position: absolute;
+  z-index: 4;
+  top: 53px;
+  padding: 4px 6px;
+  color: #9eada6;
+  background: rgba(8, 21, 21, 0.62);
+  font-size: 5.5px;
+  letter-spacing: 0.04em;
+}
+
+.battle-scene__formation--player {
+  left: 11px;
+}
+
+.battle-scene__formation--opponent {
+  right: 11px;
 }
 
 .battle-scene__faction {
