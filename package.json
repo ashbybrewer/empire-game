@@ -1,0 +1,34 @@
+{
+  "name": "sovereigns-grand-strategy",
+  "version": "1.0.0",
+  "description": "A playable historical grand-strategy campaign prototype",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ashbybrewer/empire-game.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ashbybrewer/empire-game/issues"
+  },
+  "homepage": "https://github.com/ashbybrewer/empire-game#readme",
+  "dependencies": {
+    "lucide-react": "^1.24.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.4"
+  }
+}
