@@ -854,17 +854,17 @@ function drawRegimentalStandard(
 
 function drawBloodDecals(ctx: CanvasRenderingContext2D, count: number, intensity: number) {
   ctx.save()
-  ctx.globalAlpha = 0.45 * intensity
+  ctx.globalAlpha = 0.55 * intensity
   for (let i = 0; i < count; i += 1) {
-    const x = 395 + seeded(i, 51) * 225
-    const y = 360 + seeded(i, 52) * 120
-    ctx.fillStyle = i % 2 ? '#5f1716' : '#741b18'
+    const x = 320 + seeded(i, 51) * 360
+    const y = 330 + seeded(i, 52) * 150
+    ctx.fillStyle = i % 3 === 0 ? '#4a1010' : i % 2 ? '#5f1716' : '#8a221c'
     ctx.beginPath()
-    ctx.ellipse(x, y, 5 + seeded(i, 53) * 11, 2 + seeded(i, 54) * 5, seeded(i, 55) * Math.PI, 0, Math.PI * 2)
+    ctx.ellipse(x, y, 6 + seeded(i, 53) * 14, 2.5 + seeded(i, 54) * 6, seeded(i, 55) * Math.PI, 0, Math.PI * 2)
     ctx.fill()
-    for (let drop = 0; drop < 3; drop += 1) {
+    for (let drop = 0; drop < 5; drop += 1) {
       ctx.beginPath()
-      ctx.arc(x + (seeded(i + drop, 57) - 0.5) * 26, y + (seeded(i + drop, 58) - 0.5) * 12, 1.2 + drop * 0.6, 0, Math.PI * 2)
+      ctx.arc(x + (seeded(i + drop, 57) - 0.5) * 34, y + (seeded(i + drop, 58) - 0.5) * 16, 1.2 + drop * 0.55, 0, Math.PI * 2)
       ctx.fill()
     }
   }
@@ -887,6 +887,8 @@ function drawFormation(
   const direction = side === 'player' ? 1 : -1
   const isZulu = profile.factionId === 'zulu'
   const mountedCount = soldiers.filter((soldier) => soldier.mounted).length
+  const meleeRush = profile.firearmRatio < 0.45
+  const casualtyMod = side === 'opponent' && meleeRush ? 11 : side === 'player' && meleeRush ? 17 : side === 'player' ? 29 : 23
 
   const positioned = soldiers.map((soldier) => {
     let columnDepth = 0
@@ -926,8 +928,10 @@ function drawFormation(
     }
 
     const rowAdvance = isZulu
-      ? phaseProgress * (plan === 'advance' ? 255 : 205)
-      : phaseProgress * (side === 'player' ? (plan === 'advance' ? 165 : 125) : 112)
+      ? phaseProgress * (plan === 'advance' ? 275 : 220)
+      : meleeRush
+        ? phaseProgress * (plan === 'advance' ? 240 : 195)
+        : phaseProgress * (side === 'player' ? (plan === 'advance' ? 165 : 125) : 112)
     const wingSurge = isZulu && soldier.index >= 120 ? phaseProgress * 52 : 0
     const x = baseX + direction * (columnDepth + rowAdvance + wingSurge)
 
@@ -939,8 +943,8 @@ function drawFormation(
     .forEach(({ soldier, x, groundY, scale }) => {
       const casualty =
         phase === 'engaging' &&
-        phaseProgress > 0.48 &&
-        ((soldier.index + (side === 'player' ? 3 : 0)) % (side === 'player' ? 29 : 23) === 0)
+        phaseProgress > (meleeRush ? 0.36 : 0.48) &&
+        ((soldier.index + (side === 'player' ? 3 : 0)) % casualtyMod === 0)
       const volleyCycle =
         (elapsed / 2050 + soldier.row * 0.12 + soldier.column * 0.002 + (side === 'player' ? 0 : 0.48)) % 1
       const aiming = phase === 'engaging' && soldier.firearm && (volleyCycle < 0.15 || volleyCycle > 0.78)
@@ -993,6 +997,7 @@ export function BattlefieldScene({
   const opponentProfile = useMemo(() => getMilitaryProfile(region.owner), [region.owner])
   const playerSoldiers = useMemo(() => makeSoldiers(playerProfile, 1), [playerProfile])
   const opponentSoldiers = useMemo(() => makeSoldiers(opponentProfile, 2), [opponentProfile])
+  const savageClash = playerProfile.firearmRatio > 0.85 && opponentProfile.firearmRatio < 0.55
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -1027,7 +1032,8 @@ export function BattlefieldScene({
       drawMap(context, mapKind, elapsed)
 
       if (effectsEnabled) {
-        drawBloodDecals(context, phase === 'engaging' ? 18 : 3, phase === 'engaging' ? Math.min(1, elapsed / 1900) : 0.35)
+        const bloodCount = phase === 'engaging' ? (savageClash ? 42 : 22) : savageClash ? 8 : 3
+        drawBloodDecals(context, bloodCount, phase === 'engaging' ? Math.min(1, elapsed / 1400) : 0.4)
       }
 
       drawFormation(context, opponentSoldiers, opponentProfile, 'opponent', elapsed, phase, plan, effectsEnabled)
@@ -1058,11 +1064,14 @@ export function BattlefieldScene({
     plan,
     playerProfile,
     playerSoldiers,
+    savageClash,
   ])
 
   const sceneStatus =
     phase === 'engaging'
-      ? 'Artillery firing · line volleys · formations advancing'
+      ? savageClash
+        ? 'Musket volleys · bayonet clash · spear charge in the smoke'
+        : 'Artillery firing · line volleys · formations advancing'
       : phase === 'parley'
         ? 'Delegations moving to neutral ground'
         : 'Forces deployed · awaiting orders'

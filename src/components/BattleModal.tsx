@@ -39,19 +39,19 @@ const plans: Array<{
 }> = [
   {
     id: 'advance',
-    name: 'Concentrated advance',
-    eyebrow: 'Decisive action',
-    description: 'Mass the guns, secure the main road, and force a field engagement.',
+    name: 'Volley & bayonet',
+    eyebrow: 'Savage assault',
+    description: 'Mass the muskets, fire by ranks, then close with the bayonet against spear and shield.',
     icon: Crosshair,
-    casualty: 'High loss risk',
+    casualty: 'Brutal loss risk',
   },
   {
     id: 'adapt',
-    name: 'Adaptive columns',
-    eyebrow: 'Measured action',
-    description: 'Split the force, screen the supply line, and adapt to local terrain.',
+    name: 'Gun line & screens',
+    eyebrow: 'Measured slaughter',
+    description: 'Hold a firing line, screen the wagons, and bleed the charge before it reaches the square.',
     icon: Shield,
-    casualty: 'Moderate loss risk',
+    casualty: 'Heavy loss risk',
   },
   {
     id: 'parley',
@@ -119,16 +119,20 @@ export function BattleModal({ region, playerFactionId, resources, onClose, onRes
   const modifiers = useMemo(() => localPlanModifiers(region), [region])
 
   const odds = useMemo(() => {
-    const defensivePower = region.resistance * 0.13 + region.garrison * 0.09
-    const advance = clamp(Math.round(88 - defensivePower + modifiers.advance), 24, 82)
-    const adapt = clamp(Math.round(80 - defensivePower + modifiers.adapt), 30, 82)
+    const playerGun = playerProfile.firearmRatio
+    const opponentGun = opponentProfile.firearmRatio
+    const gunGap = playerGun - opponentGun
+    const asymmetric = playerFaction.kind !== 'sovereign' && opponent.kind === 'sovereign' && gunGap > 0.25
+    const defensivePower = region.resistance * 0.11 + region.garrison * 0.08 - (asymmetric ? gunGap * 18 : 0)
+    const advance = clamp(Math.round(88 - defensivePower + modifiers.advance + (asymmetric ? 8 : 0)), 22, 88)
+    const adapt = clamp(Math.round(80 - defensivePower + modifiers.adapt + (asymmetric ? 4 : 0)), 28, 86)
     const parley = clamp(
       Math.round(48 + region.relation * 0.35 + region.prosperity * 0.08 + modifiers.parley),
       18,
       83,
     )
-    return { advance, adapt, parley }
-  }, [modifiers, region])
+    return { advance, adapt, parley, asymmetric, gunGap }
+  }, [modifiers, opponent.kind, opponentProfile.firearmRatio, playerFaction.kind, playerProfile.firearmRatio, region])
 
   const canAffordPlan = (plan: BattlePlan) => {
     const cost = planCosts[plan]
@@ -155,6 +159,7 @@ export function BattleModal({ region, playerFactionId, resources, onClose, onRes
     if (!canAffordPlan(selectedPlan) || battlePhase !== 'planning') return
     const chance = odds[selectedPlan]
     const success = Math.random() * 100 <= chance
+    const asymmetric = odds.asymmetric
 
     if (selectedPlan === 'parley') {
       const result: BattleResult = success
@@ -181,28 +186,51 @@ export function BattleModal({ region, playerFactionId, resources, onClose, onRes
     }
 
     const aggressive = selectedPlan === 'advance'
+    const closeCombat = opponentProfile.firearmRatio < 0.45
     const result: BattleResult = success
       ? {
           victory: true,
-          title: aggressive ? 'The field is held' : 'The approaches are secured',
-          summary: aggressive
-            ? `The main formation broke through, but ${opponent.shortName} units withdrew in good order and resistance remains active beyond the road.`
-            : `Careful screens protected the column from ${region.doctrine.toLowerCase()}. The regional capital now lies within reach.`,
-          casualties: aggressive ? 18 : 9,
-          oppositionCasualties: aggressive ? 14 : 8,
-          legitimacy: aggressive ? -7 : -3,
+          title: asymmetric
+            ? aggressive
+              ? 'Volley and bayonet'
+              : 'The village is taken'
+            : aggressive
+              ? 'The field is held'
+              : 'The approaches are secured',
+          summary: asymmetric
+            ? aggressive
+              ? closeCombat
+                ? `Musket volleys tear gaps in the ${opponent.shortName} ranks before the bayonet charge. Spears and shields close the last yards in a savage melee; the ground is thick with powder smoke and blood. ${opponent.name} breaks, but survivors melt into ${region.terrain.toLowerCase()}.`
+                : `Concentrated musketry and field guns shatter ${opponent.shortName} formations. Trade firearms answer from the flanks, but the colonial line holds. The field is won at a vicious cost.`
+              : `Screened companies burn powder into the approaches. ${opponent.shortName} fighters—armed for close war—are driven from the road in a brutal running fight.`
+            : aggressive
+              ? `The main formation broke through, but ${opponent.shortName} units withdrew in good order and resistance remains active beyond the road.`
+              : `Careful screens protected the column from ${region.doctrine.toLowerCase()}. The regional capital now lies within reach.`,
+          casualties: asymmetric ? (aggressive ? 22 : 12) : aggressive ? 18 : 9,
+          oppositionCasualties: asymmetric ? (aggressive ? 48 : 34) : aggressive ? 14 : 8,
+          legitimacy: asymmetric ? (aggressive ? -11 : -6) : aggressive ? -7 : -3,
         }
       : {
           victory: false,
-          title: aggressive ? 'The column is repulsed' : 'The advance is suspended',
-          summary: `${opponent.shortName} forces used ${region.terrain.toLowerCase()} and ${region.doctrine.toLowerCase()} to isolate the field force from its supplies.`,
-          casualties: aggressive ? 27 : 14,
-          oppositionCasualties: aggressive ? 11 : 6,
-          legitimacy: aggressive ? -10 : -4,
+          title: asymmetric
+            ? aggressive
+              ? 'Overrun in the smoke'
+              : 'Ambush in the brush'
+            : aggressive
+              ? 'The column is repulsed'
+              : 'The advance is suspended',
+          summary: asymmetric
+            ? closeCombat
+              ? `${opponent.shortName} warriors close under the last volley. Spears, clubs, and captured muskets turn the square into a slaughter before the guns can reload. The column reels back through ${region.terrain.toLowerCase()}, leaving dead and wounded in the grass.`
+              : `${opponent.name} uses ${region.doctrine.toLowerCase()} to envelope the gun line. Powder runs short; the retreat is cut by a vicious pursuit.`
+            : `${opponent.shortName} forces used ${region.terrain.toLowerCase()} and ${region.doctrine.toLowerCase()} to isolate the field force from its supplies.`,
+          casualties: asymmetric ? (aggressive ? 41 : 28) : aggressive ? 27 : 14,
+          oppositionCasualties: asymmetric ? (aggressive ? 29 : 18) : aggressive ? 11 : 6,
+          legitimacy: asymmetric ? (aggressive ? -14 : -8) : aggressive ? -10 : -4,
         }
     resolutionRef.current = { result, plan: selectedPlan }
     setBattlePhase('engaging')
-    resolutionTimerRef.current = window.setTimeout(completeResolution, 5600)
+    resolutionTimerRef.current = window.setTimeout(completeResolution, asymmetric ? 6800 : 5600)
   }
 
   return (

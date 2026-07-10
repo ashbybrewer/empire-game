@@ -54,7 +54,7 @@ const resistanceColor = (value: number) => {
 }
 
 function regionFill(region: Region, lens: MapLens) {
-  if (lens === 'trade') return prosperityColor(region.prosperity)
+  if (lens === 'trade') return prosperityColor(region.marketDemand || region.prosperity)
   if (lens === 'resistance') return resistanceColor(region.resistance)
   return factions[region.owner]?.color ?? '#6b756d'
 }
@@ -232,12 +232,17 @@ export function WorldMap({
             const isCompact = [
               'british-isles',
               'france',
-              'iberia',
+              'portugal',
               'spain',
+              'low-countries',
               'prussia',
               'austrian-empire',
               'gold-coast',
               'dahomey',
+              'slave-coast',
+              'senegal',
+              'jamaica',
+              'cuba',
               'zulu-kingdom',
               'java',
               'siam',

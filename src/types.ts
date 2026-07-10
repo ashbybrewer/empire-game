@@ -19,7 +19,14 @@ export interface Region {
   owner: string
   people: string
   economy: string
+  /** Display good / primary colonial raw material. */
   good: string
+  /** Raw material extracted for the mercantile pipeline. */
+  rawMaterial: string
+  /** Colonial appetite for manufactured imports (0–100). */
+  marketDemand: number
+  /** Industrial mother-country heartland. */
+  isMetropolis: boolean
   doctrine: string
   doctrineDetail: string
   terrain: string
@@ -37,6 +44,12 @@ export interface Resources {
   supply: number
   influence: number
   legitimacy: number
+  /** Industrial capacity of the mother country (0–100). */
+  industry: number
+  /** Stockpiled colonial raw materials. */
+  rawStock: number
+  /** Finished goods awaiting colonial markets. */
+  manufactures: number
 }
 
 export interface CampaignPreset {
@@ -55,7 +68,7 @@ export interface CampaignPreset {
   objectiveTitle: string
   objectiveBody: string
   objectiveTarget: number
-  objectiveMetric: 'accords' | 'regions'
+  objectiveMetric: 'accords' | 'regions' | 'colonies'
   doctrine: string
   campaignSummary: string
   warActionLabel: string

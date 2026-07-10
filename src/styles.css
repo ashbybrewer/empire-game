@@ -1570,6 +1570,18 @@ button:focus-visible,
   background: rgba(255, 255, 255, 0.017);
 }
 
+.economy-card--secondary {
+  margin-top: 8px;
+  grid-template-columns: 37px 1fr;
+  height: auto;
+  min-height: 58px;
+  padding: 8px 10px;
+}
+
+.economy-section .economy-card + .economy-card {
+  border-top-color: rgba(201, 167, 98, 0.12);
+}
+
 .good-icon {
   width: 32px;
   height: 32px;

@@ -32,6 +32,7 @@ import {
 import { campaignPresets, defaultCampaign } from './campaigns'
 import { WorldMap } from './components/WorldMap'
 import { factions, regions as initialRegions } from './data'
+import { isColonialHolding, manufactureLabel, rivalColonialClaims, runMercantileTick } from './mercantile'
 import type {
   BattlePlan,
   BattleResult,
@@ -54,13 +55,13 @@ const seasons = ['Spring', 'Summer', 'Autumn', 'Winter']
 const navItems: Array<{ id: View; label: string; icon: typeof Globe2 }> = [
   { id: 'campaign', label: 'Campaign', icon: Globe2 },
   { id: 'diplomacy', label: 'Diplomacy', icon: Handshake },
-  { id: 'ledger', label: 'Trade ledger', icon: Landmark },
+  { id: 'ledger', label: 'Mercantile ledger', icon: Landmark },
   { id: 'military', label: 'War council', icon: Swords },
 ]
 
 const lensOptions: Array<{ id: MapLens; label: string }> = [
   { id: 'political', label: 'Political' },
-  { id: 'trade', label: 'Commerce' },
+  { id: 'trade', label: 'Raw & markets' },
   { id: 'resistance', label: 'Resistance' },
 ]
 
@@ -145,6 +146,9 @@ function App() {
   const playerFactionId = activeCampaign.factionId
   const playerFaction = factions[playerFactionId]
   const controlledRegions = regions.filter((region) => region.owner === playerFactionId)
+  const colonies = controlledRegions.filter((region) =>
+    isColonialHolding(region, playerFactionId, activeCampaign.homeRegionId),
+  )
   const hasTradeAccord = tradePartners.includes(selected.id)
   const canProjectPower =
     selected.isCoastal || controlledRegions.some((region) => region.theater === selected.theater)
@@ -153,10 +157,16 @@ function App() {
   const objectiveProgress =
     activeCampaign.objectiveMetric === 'accords'
       ? Math.min(activeCampaign.objectiveTarget, tradePartners.length)
-      : Math.min(
-          activeCampaign.objectiveTarget,
-          controlledRegions.filter((region) => region.theater === homeRegion.theater).length,
-        )
+      : activeCampaign.objectiveMetric === 'colonies'
+        ? Math.min(activeCampaign.objectiveTarget, colonies.length)
+        : Math.min(
+            activeCampaign.objectiveTarget,
+            controlledRegions.filter((region) =>
+              activeCampaign.factionId === 'unitedStates'
+                ? region.theater === 'North America'
+                : region.theater === homeRegion.theater,
+            ).length,
+          )
 
   const currentYear = activeCampaign.startYear + Math.floor((turn - 1) / 4)
   const date = useMemo(() => {
@@ -234,16 +244,25 @@ function App() {
         supply: Math.min(92, 48 + Math.round(selected.garrison / 2)),
         influence: Math.min(90, 36 + Math.round(selected.prosperity / 2)),
         legitimacy: Math.min(94, 55 + Math.round(selected.resistance / 3)),
+        industry: faction.kind === 'sovereign' ? 14 : Math.round(30 + selected.prosperity / 3),
+        rawStock: 20,
+        manufactures: 10,
       },
       tradePartners: [],
-      rivalIds: [playerFactionId, ...activeCampaign.rivalIds.filter((id) => id !== faction.id)].slice(0, 3),
-      objectiveTitle: 'Regional ascendancy',
-      objectiveBody: `Control three regions in ${selected.theater}`,
-      objectiveTarget: 3,
-      objectiveMetric: 'regions',
+      rivalIds:
+        faction.kind === 'imperial' || faction.kind === 'commercial'
+          ? ['britain', 'france', 'spain', 'portugal', 'netherlands', 'unitedStates'].filter((id) => id !== faction.id).slice(0, 5)
+          : [playerFactionId, ...activeCampaign.rivalIds.filter((id) => id !== faction.id)].slice(0, 3),
+      objectiveTitle: faction.kind === 'sovereign' ? 'Regional ascendancy' : 'Colonial scramble',
+      objectiveBody:
+        faction.kind === 'sovereign'
+          ? `Control three regions in ${selected.theater}`
+          : 'Hold six colonies outside the metropole',
+      objectiveTarget: faction.kind === 'sovereign' ? 3 : 6,
+      objectiveMetric: faction.kind === 'sovereign' ? 'regions' : 'colonies',
       doctrine: selected.doctrineDetail,
-      campaignSummary: `Lead ${faction.name} in an open campaign beginning from ${selected.name}. Diplomacy, trade, and conquest remain fully available.`,
-      warActionLabel: faction.kind === 'sovereign' ? 'Muster field host' : 'Plan campaign',
+      campaignSummary: `Lead ${faction.name} in an open campaign beginning from ${selected.name}. Race rival empires for colonies, raw materials, and markets.`,
+      warActionLabel: faction.kind === 'sovereign' ? 'Muster field host' : 'Dispatch column',
     }
     selectCampaign(sandboxCampaign)
   }
@@ -400,85 +419,90 @@ function App() {
   }
 
   const endTurn = () => {
-    const territorialIncome = Math.round(
-      controlledRegions.reduce((sum, region) => sum + region.prosperity * 1.8 + region.ports * 20, 180),
-    )
     const tradeIncome = tradePartners.length * 70
-    const income = territorialIncome + tradeIncome
     const activeOccupations = controlledRegions.filter((region) => region.resistance >= 55).length
-    const supplyDelta = Math.max(-12, 17 - controlledRegions.length * 2 - activeOccupations * 3)
+    const supplyDelta = Math.max(-12, 17 - colonies.length * 2 - activeOccupations * 3)
     const nextTurn = turn + 1
+
+    const mercantile = runMercantileTick(regions, resources, playerFaction, activeCampaign.homeRegionId)
+    const scramble = rivalColonialClaims(regions, playerFactionId, activeCampaign.rivalIds, nextTurn)
+    if (scramble.claim) {
+      setRegions(scramble.regions)
+    }
+
     setTurn(nextTurn)
-    setResources((current) => ({
-      treasury: current.treasury + income,
-      supply: Math.max(0, Math.min(100, current.supply + supplyDelta)),
-      influence: Math.min(100, current.influence + 9),
-      legitimacy: Math.max(0, current.legitimacy - (controlledRegions.length > 4 ? 2 : 0)),
-    }))
+    setResources({
+      ...mercantile.resources,
+      treasury: mercantile.resources.treasury + tradeIncome,
+      supply: Math.max(0, Math.min(100, resources.supply + supplyDelta)),
+      influence: Math.min(100, resources.influence + 9),
+      legitimacy: Math.max(
+        0,
+        resources.legitimacy - (colonies.length > 5 ? 2 : 0) - (scramble.claim ? 1 : 0),
+      ),
+    })
+
+    const scrambleEvent = scramble.claim
+      ? {
+          title: `${factions[scramble.claim.rivalId].shortName} plants a flag`,
+          body: `${factions[scramble.claim.rivalId].name} has claimed ${scramble.claim.regionName}. The scramble for colonies continues.`,
+          type: 'conflict' as const,
+        }
+      : null
 
     const worldEvents =
-      playerFactionId === 'unitedStates'
+      playerFaction.kind === 'sovereign'
         ? [
             {
-              title: 'Congress debates western appropriations',
-              body: 'Expansionists demand a larger army while opponents question the human and financial cost.',
+              title: 'Gunpowder smoke on the horizon',
+              body: 'A colonial column has been sighted near the frontier—muskets, bayonets, and wagon guns.',
             },
             {
-              title: 'Mexican diplomats lodge a protest',
-              body: 'Mexico rejects the latest boundary claim and reinforces the northern approaches.',
+              title: 'Council runners return',
+              body: 'Neighboring leaders are prepared to discuss mutual defense against the scramble.',
             },
             {
-              title: 'Treaty nations call a council',
-              body: 'Indigenous leaders warn that surveying parties have crossed recognized boundaries.',
+              title: 'Merchants offer powder and cloth',
+              body: 'Trade goods would strengthen supply but may deepen dependence on a coastal empire.',
             },
             {
-              title: 'Volunteer regiments assemble',
-              body: 'State governors offer new formations, but their training and discipline vary sharply.',
+              title: 'Communities renew their levy',
+              body: 'Defenders gather spears, shields, trade muskets, and report on roads and passes.',
             },
           ]
-        : playerFaction.kind === 'sovereign'
-          ? [
-              {
-                title: 'Council runners return',
-                body: 'Neighboring leaders are prepared to discuss mutual defense and reciprocal trade.',
-              },
-              {
-                title: 'Surveyors cross a boundary',
-                body: 'A foreign mapping party has been sighted beyond the agreed frontier.',
-              },
-              {
-                title: 'Merchants offer powder and cloth',
-                body: 'The exchange would strengthen supply but may deepen dependence on a coastal power.',
-              },
-              {
-                title: 'Communities renew their levy',
-                body: 'Local defenders gather stores and report on roads, rivers, and mountain passes.',
-              },
-            ]
-          : [
-              {
-                title: 'French surveyors sighted on the Senegal',
-                body: 'Paris appears ready to offer arms in exchange for a coastal concession.',
-              },
-              {
-                title: 'A merchant convoy clears the Cape',
-                body: 'Tea, cotton, and machinery are moving again after the winter storms.',
-              },
-              {
-                title: 'Debate in the Commons',
-                body: 'Opposition members demand clearer limits on the cost of overseas campaigns.',
-              },
-              {
-                title: 'Qing customs officials issue new rules',
-                body: 'Foreign merchants will be confined to licensed warehouses this season.',
-              },
-            ]
+        : [
+            {
+              title: 'Colonial raw materials arrive',
+              body: `${mercantile.rawExtracted} cargoes of colonial goods have reached the metropole. Industry stands at ${mercantile.resources.industry}.`,
+            },
+            {
+              title: 'Mills turn out finished goods',
+              body: `Workshops produced ${mercantile.goodsProduced} manufactures from colonial raw stock for sale into overseas markets.`,
+            },
+            {
+              title: 'Rival surveyors on the coast',
+              body: 'Another European power is sounding harbors and offering treaties for coastal concessions.',
+            },
+            {
+              title: 'Market demand from the colonies',
+              body: `Colonial markets absorbed ${mercantile.goodsSold} finished goods. More colonies mean more raw materials—and more buyers.`,
+            },
+          ]
     const next = worldEvents[(nextTurn - 2) % worldEvents.length]
-    setEvents((current) => [
-      { ...next, id: eventIdRef.current++, turn: nextTurn, type: 'world' as const },
-      ...current,
-    ].slice(0, 8))
-    showToast(`Turn advanced · +${formatTreasury(income)} revenue`)
+    setEvents((current) =>
+      [
+        ...(scrambleEvent
+          ? [{ ...scrambleEvent, id: eventIdRef.current++, turn: nextTurn }]
+          : []),
+        { ...next, id: eventIdRef.current++, turn: nextTurn, type: 'world' as const },
+        ...current,
+      ].slice(0, 8),
+    )
+    showToast(
+      scramble.claim
+        ? `${factions[scramble.claim.rivalId].shortName} claimed ${scramble.claim.regionName}`
+        : `Turn advanced · ${mercantile.summary.split(' · ')[0]} · +${formatTreasury(mercantile.marketIncome + tradeIncome)}`,
+    )
   }
 
   return (
@@ -506,7 +530,7 @@ function App() {
           <div className="resource-item">
             <span className="resource-icon resource-icon--treasury"><Coins size={16} /></span>
             <div><small>{activeCampaign.treasuryLabel}</small><strong>{formatTreasury(resources.treasury)}</strong></div>
-            <span className="resource-delta">+4.2%</span>
+            <span className="resource-delta">{colonies.length} col.</span>
           </div>
           <div className="resource-item">
             <span className="resource-icon"><PackageOpen size={16} /></span>
@@ -514,9 +538,13 @@ function App() {
             <span className="resource-cap">/100</span>
           </div>
           <div className="resource-item">
-            <span className="resource-icon"><Sparkles size={16} /></span>
-            <div><small>INFLUENCE</small><strong>{resources.influence}</strong></div>
+            <span className="resource-icon"><Landmark size={16} /></span>
+            <div><small>INDUSTRY</small><strong>{resources.industry}</strong></div>
             <span className="resource-cap">/100</span>
+          </div>
+          <div className="resource-item">
+            <span className="resource-icon"><Wheat size={16} /></span>
+            <div><small>RAW / GOODS</small><strong>{resources.rawStock}/{resources.manufactures}</strong></div>
           </div>
           <div className="resource-item">
             <span className="resource-icon"><Scale size={16} /></span>
@@ -585,13 +613,13 @@ function App() {
               <span className="section-eyebrow">
                 {view === 'campaign' && 'WORLD CAMPAIGN'}
                 {view === 'diplomacy' && 'FOREIGN OFFICE'}
-                {view === 'ledger' && 'BOARD OF TRADE'}
+                {view === 'ledger' && 'MERCANTILE BOARD'}
                 {view === 'military' && 'WAR COUNCIL'}
               </span>
               <h1>
-                {view === 'campaign' && 'Theaters of influence'}
+                {view === 'campaign' && 'Theaters of the scramble'}
                 {view === 'diplomacy' && 'Treaties & relations'}
-                {view === 'ledger' && 'Global commerce'}
+                {view === 'ledger' && 'Raw materials & markets'}
                 {view === 'military' && 'Field command'}
               </h1>
             </div>
@@ -675,9 +703,9 @@ function App() {
               )}
               {lens === 'trade' && (
                 <>
-                  <span><i className="legend-square" style={{ background: '#c9a85c' }} /> Wealthy market</span>
-                  <span><i className="legend-square" style={{ background: '#66877a' }} /> Local exchange</span>
-                  <span><i className="route-key" /> Sea route</span>
+                  <span><i className="legend-square" style={{ background: '#c9a85c' }} /> High market demand</span>
+                  <span><i className="legend-square" style={{ background: '#66877a' }} /> Raw-material colony</span>
+                  <span><i className="route-key" /> Metropole industry routes</span>
                 </>
               )}
               {lens === 'resistance' && (
@@ -747,19 +775,35 @@ function App() {
 
             <section className="region-section economy-section">
               <div className="region-section__title">
-                <span><Wheat size={14} /> ECONOMY</span>
-                <small>{selected.prosperity >= 70 ? 'THRIVING' : selected.prosperity >= 55 ? 'STEADY' : 'LOCAL'}</small>
+                <span><Wheat size={14} /> MERCANTILE ECONOMY</span>
+                <small>{selected.isMetropolis ? 'METROPOLE' : selected.owner === playerFactionId ? 'COLONY' : 'MARKET'}</small>
               </div>
               <div className="economy-card">
-                <div className="good-icon">{selected.good === 'Gold' ? <CircleDollarSign size={21} /> : <Leaf size={21} />}</div>
+                <div className="good-icon">{selected.good === 'Gold' || selected.good === 'Silver' ? <CircleDollarSign size={21} /> : <Leaf size={21} />}</div>
                 <div>
-                  <small>PRIMARY EXCHANGE</small>
-                  <strong>{selected.good}</strong>
+                  <small>RAW MATERIAL</small>
+                  <strong>{selected.rawMaterial || selected.good}</strong>
                   <span>{selected.economy}</span>
                 </div>
                 <div className="port-count">
                   <Anchor size={14} />
                   <span>{selected.ports}</span>
+                </div>
+              </div>
+              <div className="economy-card economy-card--secondary">
+                <div className="good-icon"><PackageOpen size={21} /></div>
+                <div>
+                  <small>{selected.isMetropolis ? 'INDUSTRIAL OUTPUT' : 'MARKET DEMAND'}</small>
+                  <strong>
+                    {selected.isMetropolis
+                      ? manufactureLabel(selected.rawMaterial || selected.good)
+                      : `${selected.marketDemand}/100 demand`}
+                  </strong>
+                  <span>
+                    {selected.isMetropolis
+                      ? 'Colonial raw goods feed these workshops'
+                      : `Buys ${manufactureLabel(selected.rawMaterial || selected.good).toLowerCase()} from the mother country`}
+                  </span>
                 </div>
               </div>
             </section>
@@ -856,14 +900,15 @@ function App() {
           <div className="campaign-brief">
             <button className="icon-button modal-close" onClick={() => setBriefOpen(false)} aria-label="Close campaign brief" autoFocus><X size={18} /></button>
             <div className="brief-mark"><Compass size={31} /></div>
-            <span className="section-eyebrow">PLAYABLE CAMPAIGNS · 1836–1846</span>
-            <h2 id="brief-title">Choose a nation</h2>
+            <span className="section-eyebrow">COLONIAL SCRAMBLE · 1836–1846</span>
+            <h2 id="brief-title">Choose a colonial power</h2>
             <p className="brief-lead">
-              Lead the United States through Manifest Destiny, compete as a colonial empire, or command a sovereign
-              Indigenous nation resisting dispossession. Every campaign has its own economy, doctrine, dress, and weapons.
+              Lead Britain, France, Spain, Portugal, the Netherlands, or the United States in a race to claim colonies.
+              Raw materials flow home to industrialize the metropole; finished goods flood back into colonial markets.
+              Field battles pit musket-armed regulars against Indigenous nations fighting with spears, shields, bows, and scarce trade firearms.
             </p>
             <p className="campaign-picker-note">
-              Eight authored campaigns are shown below. To play any other atlas nation, select its territory and choose “Lead this nation.”
+              Authored scramble campaigns are shown below. Sovereign nations remain playable—select any territory and choose “Lead this nation.”
             </p>
             <div className="campaign-picker">
               {campaignPresets.map((campaign) => {
