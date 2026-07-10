@@ -155,11 +155,11 @@ function App() {
           controlledRegions.filter((region) => region.theater === homeRegion.theater).length,
         )
 
+  const currentYear = activeCampaign.startYear + Math.floor((turn - 1) / 4)
   const date = useMemo(() => {
     const seasonIndex = (turn - 1) % 4
-    const year = activeCampaign.startYear + Math.floor((turn - 1) / 4)
-    return `${seasons[seasonIndex]} ${year}`
-  }, [activeCampaign.startYear, turn])
+    return `${seasons[seasonIndex]} ${currentYear}`
+  }, [currentYear, turn])
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -625,7 +625,8 @@ function App() {
                 lens={lens}
                 tradePartners={tradePartners}
                 playerFactionId={playerFactionId}
-                tradeOrigin={homeRegion.label}
+                tradeOriginId={activeCampaign.homeRegionId}
+                year={currentYear}
                 onSelect={(region) => setSelectedId(region.id)}
               />
             </div>

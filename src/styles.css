@@ -570,7 +570,7 @@ button:focus-visible,
   position: absolute;
   inset: 67px 0 0;
   overflow: hidden;
-  background: #0e2526;
+  background: #c8bc98;
 }
 
 .map-frame::before {
@@ -580,8 +580,8 @@ button:focus-visible,
   content: '';
   pointer-events: none;
   box-shadow:
-    inset 0 25px 45px rgba(3, 11, 12, 0.27),
-    inset 0 -35px 65px rgba(3, 11, 12, 0.35);
+    inset 0 20px 35px rgba(70, 51, 29, 0.12),
+    inset 0 -28px 52px rgba(70, 51, 29, 0.16);
 }
 
 .map-scale-wrap {
@@ -778,6 +778,269 @@ button:focus-visible,
   fill: #c9b675;
   font-size: 8px;
   font-weight: 700;
+}
+
+.world-map--atlas {
+  background: #c8bc98;
+}
+
+.world-map--atlas .world-map__svg {
+  background:
+    radial-gradient(circle at 48% 45%, #ded2ad, #b8a982);
+}
+
+.atlas-ocean {
+  fill: #b8c6b5;
+  stroke: #4e5f58;
+  stroke-width: 1;
+}
+
+.atlas-ocean-lines {
+  fill: url(#oceanStipple);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.atlas-graticule {
+  fill: none;
+  stroke: #4f625e;
+  stroke-dasharray: 1.2 3.5;
+  stroke-opacity: 0.25;
+  stroke-width: 0.55;
+}
+
+.atlas-land {
+  fill: #d2c39a;
+  stroke: #43392a;
+  stroke-width: 0.8;
+}
+
+.atlas-region__wash {
+  opacity: 0.78;
+  stroke: #3d3326;
+  stroke-opacity: 0.72;
+  stroke-width: 0.85;
+  mix-blend-mode: multiply;
+}
+
+.atlas-region .region__texture {
+  opacity: 0.72;
+}
+
+.atlas-region.is-selected .atlas-region__wash {
+  opacity: 0.94;
+  stroke: #f4d378;
+  stroke-width: 1.9;
+  mix-blend-mode: normal;
+}
+
+.atlas-borders {
+  fill: none;
+  stroke: #514737;
+  stroke-dasharray: 1.1 1.4;
+  stroke-opacity: 0.46;
+  stroke-width: 0.48;
+  pointer-events: none;
+}
+
+.atlas-coastline {
+  fill: none;
+  stroke: #302a20;
+  stroke-opacity: 0.88;
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+.atlas-place-label {
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: rgba(217, 205, 169, 0.72);
+  stroke-width: 1.6px;
+}
+
+.atlas-place-label--continent {
+  fill: #493d2e;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  opacity: 0.36;
+}
+
+.atlas-place-label--ocean {
+  fill: #3f6664;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 9px;
+  font-style: italic;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  opacity: 0.5;
+}
+
+.atlas-region-labels {
+  pointer-events: none;
+}
+
+.atlas-region__name {
+  fill: #302920;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 7.8px;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+  paint-order: stroke;
+  stroke: rgba(226, 215, 181, 0.92);
+  stroke-width: 2.5px;
+}
+
+.atlas-region__owner {
+  fill: #4f473a;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 4.8px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  paint-order: stroke;
+  stroke: rgba(226, 215, 181, 0.82);
+  stroke-width: 1.8px;
+}
+
+.atlas-capital-dot {
+  fill: #35291f;
+  stroke: #e2ce93;
+  stroke-width: 0.7;
+}
+
+.atlas-region-labels .is-selected .atlas-capital-dot {
+  fill: #f4d378;
+  stroke: #382b1f;
+  stroke-width: 1;
+}
+
+.atlas-player-standard {
+  fill: #f0d37b;
+  stroke: #3b2d21;
+  stroke-width: 0.7;
+}
+
+.world-map--atlas .trade-route {
+  stroke: #596f68;
+  stroke-opacity: 0.25;
+  stroke-width: 0.9;
+}
+
+.world-map--atlas .trade-route--rival {
+  stroke: #78564e;
+}
+
+.world-map--atlas .trade-route--contested {
+  stroke: #8f563f;
+}
+
+.world-map--atlas .trade-route--accord,
+.world-map--atlas .trade-route.is-prominent {
+  stroke: #705526;
+  stroke-opacity: 0.72;
+  stroke-width: 1.25;
+}
+
+.atlas-cartouche path {
+  fill: rgba(220, 207, 167, 0.92);
+  stroke: #4e3c29;
+  stroke-width: 0.8;
+}
+
+.atlas-cartouche text {
+  fill: #493622;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 5.4px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+.atlas-cartouche .atlas-cartouche__year {
+  font-size: 6px;
+  letter-spacing: 0.12em;
+}
+
+.atlas-compass circle {
+  fill: rgba(211, 197, 157, 0.8);
+  stroke: #4c3d2d;
+  stroke-opacity: 0.72;
+}
+
+.atlas-compass path {
+  fill: #4b4435;
+  fill-opacity: 0.82;
+}
+
+.atlas-compass .compass-north {
+  fill: #8f4b38;
+  fill-opacity: 0.95;
+}
+
+.atlas-compass text {
+  fill: #493827;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 7px;
+}
+
+.atlas-scale {
+  fill: none;
+  stroke: #4e4231;
+  stroke-width: 0.7;
+}
+
+.atlas-scale text {
+  fill: #4e4231;
+  stroke: none;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.atlas-neatline {
+  fill: none;
+  pointer-events: none;
+}
+
+.atlas-neatline--outer {
+  stroke: #443724;
+  stroke-width: 1.4;
+}
+
+.atlas-neatline--inner {
+  stroke: #6f5b3a;
+  stroke-width: 0.55;
+}
+
+.atlas-paper-grain {
+  fill: #6a5434;
+  filter: url(#paperGrain);
+  opacity: 0.08;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+
+.atlas-vignette {
+  box-shadow:
+    inset 0 0 55px rgba(67, 49, 28, 0.26),
+    inset 0 0 0 1px rgba(56, 43, 27, 0.5);
+}
+
+.world-map--atlas .map-marker {
+  filter: drop-shadow(0 1px 1px rgba(63, 44, 25, 0.4));
+}
+
+.world-map--atlas .map-marker--port circle,
+.world-map--atlas .map-marker--army rect {
+  fill: #dbc995;
+  stroke: #4c3b29;
+}
+
+.world-map--atlas .map-marker--port path,
+.world-map--atlas .map-marker--army text {
+  fill: #4c3b29;
+  stroke: #4c3b29;
 }
 
 .map-objectives {
