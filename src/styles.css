@@ -29,6 +29,7 @@ body,
 #root {
   width: 100%;
   height: 100%;
+  height: 100dvh;
   margin: 0;
   overflow: hidden;
 }
@@ -52,6 +53,7 @@ button:focus-visible,
   position: relative;
   width: 100%;
   height: 100%;
+  height: 100dvh;
   min-height: 680px;
   overflow: hidden;
   background:
@@ -634,6 +636,12 @@ button:focus-visible,
   stroke: #c18268;
 }
 
+.trade-route--accord {
+  stroke: #ecd184;
+  stroke-opacity: 0.72;
+  stroke-width: 1.7;
+}
+
 .trade-route.is-prominent {
   stroke-dasharray: 4 4;
   stroke-opacity: 0.66;
@@ -675,7 +683,7 @@ button:focus-visible,
 .region__name {
   fill: #f1ead8;
   font-family: 'DM Sans', sans-serif;
-  font-size: 7.1px;
+  font-size: 7.8px;
   font-weight: 700;
   letter-spacing: 0.035em;
   paint-order: stroke;
@@ -686,7 +694,7 @@ button:focus-visible,
 .region__owner {
   fill: #b3c0b9;
   font-family: 'DM Sans', sans-serif;
-  font-size: 5.6px;
+  font-size: 6.1px;
   font-weight: 500;
   letter-spacing: 0.04em;
   paint-order: stroke;
@@ -698,6 +706,37 @@ button:focus-visible,
   fill: #f1d68f;
   stroke: #142422;
   stroke-width: 1.5;
+}
+
+.map-marker {
+  pointer-events: none;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.42));
+}
+
+.map-marker--port circle {
+  fill: #112827;
+  stroke: #d6c27f;
+  stroke-width: 0.8;
+}
+
+.map-marker--port path {
+  fill: none;
+  stroke: #d6c27f;
+  stroke-linecap: round;
+  stroke-width: 0.8;
+}
+
+.map-marker--army rect {
+  fill: #172b2a;
+  stroke: #dfd4ad;
+  stroke-width: 0.8;
+}
+
+.map-marker--army text {
+  fill: #dfd4ad;
+  font-family: Georgia, serif;
+  font-size: 6px;
+  font-weight: 700;
 }
 
 .map-place-labels text {
@@ -1365,6 +1404,16 @@ button:focus-visible,
   border-color: #c9a762;
   background-color: #1b2e2d;
   transform: translateY(-1px);
+}
+
+.primary-action:disabled,
+.secondary-action:disabled,
+.plan-card:disabled,
+.commit-button:disabled {
+  cursor: not-allowed;
+  filter: saturate(0.45);
+  opacity: 0.43;
+  transform: none;
 }
 
 .primary-action > span {
@@ -2277,6 +2326,18 @@ button:focus-visible,
   line-height: 1.35;
 }
 
+.plan-card__copy em {
+  margin-top: 3px;
+  color: #739f8a;
+  font-size: 6px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.plan-card__copy em.is-negative {
+  color: #bd7663 !important;
+}
+
 .plan-card__odds {
   display: flex;
   flex-direction: column;
@@ -2525,7 +2586,7 @@ button:focus-visible,
 
 @media (max-width: 760px) {
   .game-shell {
-    min-height: 620px;
+    min-height: 0;
   }
 
   .topbar {
@@ -2579,7 +2640,7 @@ button:focus-visible,
   }
 
   .map-frame {
-    inset-top: 56px;
+    top: 56px;
   }
 
   .region-panel {
@@ -2588,7 +2649,7 @@ button:focus-visible,
     right: 8px;
     bottom: 8px;
     width: min(310px, calc(100vw - 68px));
-    max-height: 42vh;
+    max-height: 54vh;
     border: 1px solid var(--line-strong);
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
   }
@@ -2598,11 +2659,26 @@ button:focus-visible,
   }
 
   .region-panel__content {
-    display: none;
+    display: block;
   }
 
   .region-heading {
     margin-top: 11px;
+  }
+
+  .region-stats,
+  .economy-section,
+  .doctrine-section,
+  .panel-note {
+    display: none;
+  }
+
+  .relation-row {
+    height: 45px;
+  }
+
+  .region-actions {
+    padding: 10px 0 12px;
   }
 
   .region-emblem {
@@ -2671,5 +2747,38 @@ button:focus-visible,
     max-height: 94vh;
     overflow: auto;
     padding-inline: 25px;
+  }
+}
+
+@media (max-height: 700px) and (min-width: 761px) {
+  .game-shell {
+    min-height: 0;
+  }
+
+  .battle-modal {
+    height: 96vh;
+    min-height: 0;
+  }
+
+  .battlefield {
+    min-height: 250px;
+  }
+
+  .battlefield-panel {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .battle-plans {
+    overflow-y: auto;
+    padding-top: 12px;
+  }
+
+  .plan-card {
+    min-height: 74px;
+  }
+
+  .battle-footnote {
+    display: none;
   }
 }

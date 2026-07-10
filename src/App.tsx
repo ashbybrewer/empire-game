@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Anchor,
   Bell,
@@ -98,11 +98,16 @@ function App() {
   const [briefOpen, setBriefOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [zoom, setZoom] = useState(1)
-  const [treaties, setTreaties] = useState(1)
+  const [tradePartners, setTradePartners] = useState<string[]>(['south-china'])
+  const toastTimerRef = useRef<number | null>(null)
+  const eventIdRef = useRef(4)
 
   const selected = regions.find((region) => region.id === selectedId) ?? regions[0]
   const selectedFaction = factions[selected.owner]
   const controlledRegions = regions.filter((region) => region.owner === 'britain')
+  const hasTradeAccord = tradePartners.includes(selected.id)
+  const canProjectPower =
+    selected.isCoastal || controlledRegions.some((region) => region.theater === selected.theater)
 
   const date = useMemo(() => {
     const seasonIndex = (turn - 1) % 4
@@ -110,14 +115,30 @@ function App() {
     return `${seasons[seasonIndex]} ${year}`
   }, [turn])
 
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setNotificationsOpen(false)
+      setBriefOpen(false)
+      setBattleRegion(null)
+      setBattleResult(null)
+    }
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('keydown', handleEscape)
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current)
+    }
+  }, [])
+
   const showToast = (message: string) => {
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current)
     setToast(message)
-    window.setTimeout(() => setToast(null), 2600)
+    toastTimerRef.current = window.setTimeout(() => setToast(null), 2600)
   }
 
   const addEvent = (event: Omit<CampaignEvent, 'id' | 'turn'>) => {
     setEvents((current) => [
-      { ...event, id: Date.now(), turn },
+      { ...event, id: eventIdRef.current++, turn },
       ...current,
     ].slice(0, 8))
   }
@@ -129,6 +150,10 @@ function App() {
   }
 
   const handleTrade = () => {
+    if (hasTradeAccord) {
+      showToast('A reciprocal trade accord is already active.')
+      return
+    }
     if (resources.influence < 8) {
       showToast('Not enough influence to charter a mission.')
       return
@@ -136,22 +161,26 @@ function App() {
     setResources((current) => ({
       ...current,
       influence: current.influence - 8,
-      treasury: current.treasury + 120,
+      treasury: current.treasury + 60,
     }))
     updateSelected({
       relation: Math.min(100, selected.relation + 8),
       prosperity: Math.min(100, selected.prosperity + 2),
     })
-    setTreaties((current) => Math.min(3, current + 1))
+    setTradePartners((current) => [...current, selected.id])
     addEvent({
       type: 'trade',
       title: `Commercial mission to ${selected.name}`,
       body: `${selectedFaction.shortName} merchants agreed to reciprocal market access.`,
     })
-    showToast('Trade charter signed · +£120k')
+    showToast('Trade charter signed · New seasonal revenue')
   }
 
   const handleEnvoy = () => {
+    if (selected.relation >= 100) {
+      showToast('Relations are already at their diplomatic ceiling.')
+      return
+    }
     if (resources.influence < 12) {
       showToast('Not enough influence to dispatch an embassy.')
       return
@@ -174,6 +203,10 @@ function App() {
   }
 
   const handleInvest = () => {
+    if (selected.prosperity >= 100) {
+      showToast('This region is already fully developed.')
+      return
+    }
     if (resources.treasury < 240) {
       showToast('The treasury cannot fund this project.')
       return
@@ -192,9 +225,28 @@ function App() {
     showToast('Infrastructure expanded · Prosperity +5')
   }
 
+  const handleReinforce = () => {
+    if (resources.supply < 8) {
+      showToast('At least 8 supply is required to reinforce this garrison.')
+      return
+    }
+    setResources((current) => ({ ...current, supply: current.supply - 8 }))
+    updateSelected({ garrison: Math.min(100, selected.garrison + 12) })
+    addEvent({
+      type: 'conflict',
+      title: `Garrison reinforced in ${selected.name}`,
+      body: 'Fresh stores and replacements have reached the local command.',
+    })
+    showToast('Garrison reinforced · 8 supply committed')
+  }
+
   const startCampaign = () => {
-    if (resources.supply < 18) {
-      showToast('At least 18 supply is required to mobilize.')
+    if (!canProjectPower) {
+      showToast('No viable expedition route reaches this interior territory.')
+      return
+    }
+    if (resources.supply < 16 && resources.influence < 12) {
+      showToast('The council needs either 16 supply or 12 influence.')
       return
     }
     setBattleRegion(selected)
@@ -204,10 +256,11 @@ function App() {
     if (!battleRegion) return
     const target = battleRegion
     const wasAccord = plan === 'parley' && result.title === 'Accord reached'
+    const supplyCost = plan === 'advance' ? 16 : plan === 'adapt' ? 22 : 0
 
     setResources((current) => ({
       ...current,
-      supply: plan === 'parley' ? current.supply : Math.max(0, current.supply - 18),
+      supply: Math.max(0, current.supply - supplyCost),
       influence: plan === 'parley' ? Math.max(0, current.influence - 12) : current.influence,
       legitimacy: Math.max(0, Math.min(100, current.legitimacy + result.legitimacy)),
     }))
@@ -235,7 +288,9 @@ function App() {
       }),
     )
 
-    if (wasAccord) setTreaties((current) => Math.min(3, current + 1))
+    if (wasAccord && !tradePartners.includes(target.id)) {
+      setTradePartners((current) => [...current, target.id])
+    }
     addEvent({
       type: plan === 'parley' ? 'diplomacy' : 'conflict',
       title: result.title,
@@ -246,15 +301,18 @@ function App() {
   }
 
   const endTurn = () => {
-    const income = Math.round(
+    const territorialIncome = Math.round(
       controlledRegions.reduce((sum, region) => sum + region.prosperity * 1.8 + region.ports * 20, 180),
     )
-    const supplyDelta = Math.max(4, 17 - controlledRegions.length * 2)
+    const tradeIncome = tradePartners.length * 70
+    const income = territorialIncome + tradeIncome
+    const activeOccupations = controlledRegions.filter((region) => region.resistance >= 55).length
+    const supplyDelta = Math.max(-12, 17 - controlledRegions.length * 2 - activeOccupations * 3)
     const nextTurn = turn + 1
     setTurn(nextTurn)
     setResources((current) => ({
       treasury: current.treasury + income,
-      supply: Math.min(100, current.supply + supplyDelta),
+      supply: Math.max(0, Math.min(100, current.supply + supplyDelta)),
       influence: Math.min(100, current.influence + 9),
       legitimacy: Math.max(0, current.legitimacy - (controlledRegions.length > 4 ? 2 : 0)),
     }))
@@ -279,7 +337,7 @@ function App() {
     ]
     const next = worldEvents[(nextTurn - 2) % worldEvents.length]
     setEvents((current) => [
-      { ...next, id: Date.now(), turn: nextTurn, type: 'world' as const },
+      { ...next, id: eventIdRef.current++, turn: nextTurn, type: 'world' as const },
       ...current,
     ].slice(0, 8))
     showToast(`Turn advanced · +£${income}k revenue`)
@@ -334,6 +392,7 @@ function App() {
             className={`icon-button notification-button ${notificationsOpen ? 'is-active' : ''}`}
             onClick={() => setNotificationsOpen((current) => !current)}
             aria-label="Open dispatches"
+            aria-expanded={notificationsOpen}
           >
             <Bell size={18} />
             <span />
@@ -348,7 +407,7 @@ function App() {
       <div className="game-body">
         <aside className="navigation-rail">
           <div className="rail-top">
-            <button className="rail-menu" aria-label="Main menu"><Menu size={19} /></button>
+            <button className="rail-menu" onClick={() => setBriefOpen(true)} aria-label="Open campaign brief"><Menu size={19} /></button>
             <span className="rail-divider" />
             {navItems.map((item) => {
               const Icon = item.icon
@@ -356,8 +415,12 @@ function App() {
                 <button
                   key={item.id}
                   className={`nav-button ${view === item.id ? 'is-active' : ''}`}
-                  onClick={() => setView(item.id)}
+                  onClick={() => {
+                    setView(item.id)
+                    setLens(item.id === 'ledger' ? 'trade' : item.id === 'military' ? 'resistance' : 'political')
+                  }}
                   aria-label={item.label}
+                  aria-current={view === item.id ? 'page' : undefined}
                   title={item.label}
                 >
                   <Icon size={19} strokeWidth={1.7} />
@@ -411,6 +474,7 @@ function App() {
                   key={option.id}
                   className={lens === option.id ? 'is-active' : ''}
                   onClick={() => setLens(option.id)}
+                  aria-pressed={lens === option.id}
                 >
                   {option.label}
                 </button>
@@ -425,8 +489,8 @@ function App() {
                 <small>2 ACTIVE</small>
               </div>
               <div className="objective">
-                <div className="objective-ring" style={{ '--progress': `${(treaties / 3) * 100}%` } as React.CSSProperties}>
-                  <span>{treaties}/3</span>
+                <div className="objective-ring" style={{ '--progress': `${(Math.min(3, tradePartners.length) / 3) * 100}%` } as React.CSSProperties}>
+                  <span>{Math.min(3, tradePartners.length)}/3</span>
                 </div>
                 <div>
                   <strong>Commercial footholds</strong>
@@ -455,6 +519,7 @@ function App() {
                 regions={regions}
                 selectedId={selected.id}
                 lens={lens}
+                tradePartners={tradePartners}
                 onSelect={(region) => setSelectedId(region.id)}
               />
             </div>
@@ -489,8 +554,8 @@ function App() {
                 <small>WORLD TENSION</small>
                 <strong>Rivalry is sharpening</strong>
               </div>
-              <div className="tension-meter"><span style={{ width: `${36 + turn * 2}%` }} /></div>
-              <b>{36 + turn * 2}%</b>
+              <div className="tension-meter"><span style={{ width: `${Math.min(100, 36 + turn * 2)}%` }} /></div>
+              <b>{Math.min(100, 36 + turn * 2)}%</b>
             </div>
           </section>
         </main>
@@ -575,25 +640,35 @@ function App() {
             <section className="region-actions">
               {selected.owner === 'britain' ? (
                 <>
-                  <button className="primary-action" onClick={handleInvest}>
+                  <button className="primary-action" onClick={handleInvest} disabled={resources.treasury < 240 || selected.prosperity >= 100}>
                     <Landmark size={16} />
                     <span><strong>Invest in infrastructure</strong><small>£240k · prosperity +5</small></span>
                     <ChevronRight size={16} />
                   </button>
-                  <button className="secondary-action" onClick={() => showToast('Garrison reinforced · Supply reserved')}>
+                  <button className="secondary-action" onClick={handleReinforce} disabled={resources.supply < 8 || selected.garrison >= 100}>
                     <Shield size={15} /> Reinforce garrison
                   </button>
                 </>
               ) : (
                 <>
-                  <button className="primary-action" onClick={handleTrade}>
+                  <button className="primary-action" onClick={handleTrade} disabled={hasTradeAccord || resources.influence < 8}>
                     <Ship size={16} />
-                    <span><strong>Propose trade accord</strong><small>8 influence · peaceful access</small></span>
+                    <span>
+                      <strong>{hasTradeAccord ? 'Trade accord active' : 'Propose trade accord'}</strong>
+                      <small>{hasTradeAccord ? '+£70k each turn' : '8 influence · peaceful access'}</small>
+                    </span>
                     <ChevronRight size={16} />
                   </button>
                   <div className="split-actions">
-                    <button className="secondary-action" onClick={handleEnvoy}><Handshake size={15} /> Send envoy</button>
-                    <button className="secondary-action secondary-action--danger" onClick={startCampaign}><Swords size={15} /> Mobilize</button>
+                    <button className="secondary-action" onClick={handleEnvoy} disabled={resources.influence < 12 || selected.relation >= 100}><Handshake size={15} /> Send envoy</button>
+                    <button
+                      className="secondary-action secondary-action--danger"
+                      onClick={startCampaign}
+                      disabled={!canProjectPower || (resources.supply < 16 && resources.influence < 12)}
+                      title={!canProjectPower ? 'No expedition route' : undefined}
+                    >
+                      <Swords size={15} /> {canProjectPower ? 'Convene council' : 'No route'}
+                    </button>
                   </div>
                 </>
               )}
@@ -611,7 +686,7 @@ function App() {
         <div className="dispatch-drawer">
           <div className="dispatch-header">
             <div><span className="section-eyebrow">FOREIGN OFFICE</span><h3>Recent dispatches</h3></div>
-            <button className="icon-button" onClick={() => setNotificationsOpen(false)}><X size={16} /></button>
+            <button className="icon-button" onClick={() => setNotificationsOpen(false)} aria-label="Close dispatches"><X size={16} /></button>
           </div>
           <div className="dispatch-list">
             {events.map((event) => {
@@ -634,7 +709,7 @@ function App() {
       {briefOpen && (
         <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="brief-title">
           <div className="campaign-brief">
-            <button className="icon-button modal-close" onClick={() => setBriefOpen(false)}><X size={18} /></button>
+            <button className="icon-button modal-close" onClick={() => setBriefOpen(false)} aria-label="Close campaign brief" autoFocus><X size={18} /></button>
             <div className="brief-mark"><Compass size={31} /></div>
             <span className="section-eyebrow">ALTERNATE-HISTORY CAMPAIGN · 1836</span>
             <h2 id="brief-title">An age of contest</h2>
@@ -664,6 +739,7 @@ function App() {
       {battleRegion && (
         <BattleModal
           region={battleRegion}
+          resources={{ supply: resources.supply, influence: resources.influence }}
           onClose={() => setBattleRegion(null)}
           onResolve={resolveBattle}
         />
@@ -681,14 +757,14 @@ function App() {
               <div><small>DEFENDER LOSSES</small><strong>{battleResult.oppositionCasualties}%</strong></div>
               <div><small>LEGITIMACY</small><strong className={battleResult.legitimacy < 0 ? 'is-negative' : ''}>{battleResult.legitimacy > 0 ? '+' : ''}{battleResult.legitimacy}</strong></div>
             </div>
-            <button className="brief-continue" onClick={() => setBattleResult(null)}>
+            <button className="brief-continue" onClick={() => setBattleResult(null)} autoFocus>
               Return to campaign <ChevronRight size={16} />
             </button>
           </div>
         </div>
       )}
 
-      {toast && <div className="game-toast"><span><Sparkles size={15} /></span>{toast}</div>}
+      {toast && <div className="game-toast" role="status" aria-live="polite"><span><Sparkles size={15} /></span>{toast}</div>}
     </div>
   )
 }

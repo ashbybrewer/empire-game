@@ -17,6 +17,10 @@ import type { BattlePlan, BattleResult, Region } from '../types'
 
 interface BattleModalProps {
   region: Region
+  resources: {
+    supply: number
+    influence: number
+  }
   onClose: () => void
   onResolve: (result: BattleResult, plan: BattlePlan) => void
 }
@@ -57,6 +61,45 @@ const plans: Array<{
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
+const planCosts = {
+  advance: { value: 16, resource: 'supply' },
+  adapt: { value: 22, resource: 'supply' },
+  parley: { value: 12, resource: 'influence' },
+} as const
+
+function localPlanModifiers(region: Region) {
+  const context = `${region.doctrine} ${region.terrain}`.toLowerCase()
+  let advance = region.isCoastal ? 2 : 0
+  let adapt = 0
+
+  if (/(forest|woodland|jungle|riverine|rainforest|dispersed)/.test(context)) {
+    advance -= 10
+    adapt += 7
+  }
+  if (/(mounted|cavalry|mobile|open prairie|steppe)/.test(context)) {
+    advance -= 5
+    adapt += 2
+  }
+  if (/(highland|mountain|plateau|escarpment|andes)/.test(context)) {
+    advance -= 9
+    adapt += 5
+  }
+  if (/(stockade|fortified|fortress)/.test(context)) {
+    advance -= 8
+    adapt += 4
+  }
+  if (/(combined arms|massed artillery|field army)/.test(context)) {
+    advance -= 2
+    adapt -= 5
+  }
+
+  return {
+    advance,
+    adapt,
+    parley: region.relation >= 0 ? 4 : -4,
+  }
+}
+
 function oppositionUnits(region: Region) {
   const doctrine = region.doctrine.toLowerCase()
   if (doctrine.includes('mounted') || doctrine.includes('cavalry')) {
@@ -74,22 +117,32 @@ function oppositionUnits(region: Region) {
   return ['Vanguard', 'Left formation', 'Center formation', 'Right formation']
 }
 
-export function BattleModal({ region, onClose, onResolve }: BattleModalProps) {
-  const [selectedPlan, setSelectedPlan] = useState<BattlePlan>('adapt')
+export function BattleModal({ region, resources, onClose, onResolve }: BattleModalProps) {
+  const [selectedPlan, setSelectedPlan] = useState<BattlePlan>(
+    resources.supply >= 22 ? 'adapt' : resources.supply >= 16 ? 'advance' : 'parley',
+  )
   const opponent = factions[region.owner]
+  const modifiers = useMemo(() => localPlanModifiers(region), [region])
 
   const odds = useMemo(() => {
-    const advance = clamp(Math.round(79 - region.resistance * 0.24 - region.garrison * 0.08 + 8), 26, 74)
-    const adapt = clamp(
-      Math.round(88 - region.resistance * 0.13 - region.garrison * 0.08 + (region.isCoastal ? 3 : -1)),
-      38,
-      79,
+    const defensivePower = region.resistance * 0.13 + region.garrison * 0.09
+    const advance = clamp(Math.round(88 - defensivePower + modifiers.advance), 24, 82)
+    const adapt = clamp(Math.round(80 - defensivePower + modifiers.adapt), 30, 82)
+    const parley = clamp(
+      Math.round(48 + region.relation * 0.35 + region.prosperity * 0.08 + modifiers.parley),
+      18,
+      83,
     )
-    const parley = clamp(Math.round(48 + region.relation * 0.35 + region.prosperity * 0.08), 18, 83)
     return { advance, adapt, parley }
-  }, [region])
+  }, [modifiers, region])
+
+  const canAffordPlan = (plan: BattlePlan) => {
+    const cost = planCosts[plan]
+    return resources[cost.resource] >= cost.value
+  }
 
   const resolve = () => {
+    if (!canAffordPlan(selectedPlan)) return
     const chance = odds[selectedPlan]
     const success = Math.random() * 100 <= chance
 
@@ -142,7 +195,7 @@ export function BattleModal({ region, onClose, onResolve }: BattleModalProps) {
     <div className="battle-overlay" role="dialog" aria-modal="true" aria-labelledby="battle-title">
       <div className="battle-modal">
         <header className="battle-header">
-          <button className="icon-button battle-back" onClick={onClose} aria-label="Return to campaign map">
+          <button className="icon-button battle-back" onClick={onClose} aria-label="Return to campaign map" autoFocus>
             <ArrowLeft size={18} />
           </button>
           <div>
@@ -278,17 +331,23 @@ export function BattleModal({ region, onClose, onResolve }: BattleModalProps) {
               {plans.map((plan) => {
                 const Icon = plan.icon
                 const isActive = selectedPlan === plan.id
+                const isAffordable = canAffordPlan(plan.id)
                 return (
                   <button
                     key={plan.id}
                     className={`plan-card ${isActive ? 'is-active' : ''}`}
                     onClick={() => setSelectedPlan(plan.id)}
+                    disabled={!isAffordable}
+                    aria-pressed={isActive}
                   >
                     <span className="plan-card__icon"><Icon size={19} /></span>
                     <span className="plan-card__copy">
                       <small>{plan.eyebrow}</small>
                       <strong>{plan.name}</strong>
                       <span>{plan.description}</span>
+                      <em className={modifiers[plan.id] >= 0 ? 'is-positive' : 'is-negative'}>
+                        {modifiers[plan.id] >= 0 ? '+' : ''}{modifiers[plan.id]} local modifier
+                      </em>
                     </span>
                     <span className="plan-card__odds">
                       <strong>{odds[plan.id]}%</strong>
@@ -303,7 +362,9 @@ export function BattleModal({ region, onClose, onResolve }: BattleModalProps) {
             <div className="battle-cost">
               <div>
                 <span>Expected commitment</span>
-                <strong>{selectedPlan === 'parley' ? '12 Influence' : '18 Supply'}</strong>
+                <strong>
+                  {planCosts[selectedPlan].value} {planCosts[selectedPlan].resource === 'supply' ? 'Supply' : 'Influence'}
+                </strong>
               </div>
               <div>
                 <span>Exposure</span>
@@ -311,7 +372,7 @@ export function BattleModal({ region, onClose, onResolve }: BattleModalProps) {
               </div>
             </div>
 
-            <button className="commit-button" onClick={resolve}>
+            <button className="commit-button" onClick={resolve} disabled={!canAffordPlan(selectedPlan)}>
               {selectedPlan === 'parley' ? 'Send the delegation' : 'Issue field orders'}
               <Swords size={16} />
             </button>

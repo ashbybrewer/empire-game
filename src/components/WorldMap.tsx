@@ -5,6 +5,7 @@ interface WorldMapProps {
   regions: Region[]
   selectedId: string
   lens: MapLens
+  tradePartners: string[]
   onSelect: (region: Region) => void
 }
 
@@ -29,13 +30,13 @@ function regionFill(region: Region, lens: MapLens) {
   return factions[region.owner]?.color ?? '#6b756d'
 }
 
-export function WorldMap({ regions, selectedId, lens, onSelect }: WorldMapProps) {
+export function WorldMap({ regions, selectedId, lens, tradePartners, onSelect }: WorldMapProps) {
   return (
     <div className="world-map">
       <svg
         className="world-map__svg"
         viewBox="25 36 1000 565"
-        role="img"
+        role="group"
         aria-label="Campaign map of the Atlantic world, Africa, India, and China"
       >
         <defs>
@@ -88,6 +89,18 @@ export function WorldMap({ regions, selectedId, lens, onSelect }: WorldMapProps)
               className={`trade-route trade-route--${route.tone} ${lens === 'trade' ? 'is-prominent' : ''}`}
             />
           ))}
+          {tradePartners.map((regionId) => {
+            const destination = regions.find((region) => region.id === regionId)
+            if (!destination) return null
+            const [x, y] = destination.label
+            return (
+              <path
+                key={`accord-${regionId}`}
+                d={`M 506 132 Q ${(506 + x) / 2} ${Math.max(52, Math.min(250, y - 105))} ${x} ${y}`}
+                className="trade-route trade-route--accord is-prominent"
+              />
+            )
+          })}
         </g>
 
         <g className={`regions regions--${lens}`}>
@@ -127,6 +140,26 @@ export function WorldMap({ regions, selectedId, lens, onSelect }: WorldMapProps)
                 {region.owner === 'britain' && (
                   <g className="player-standard" transform={`translate(${region.label[0] - 3} ${region.label[1] - 21})`}>
                     <path d="M0 0 L6 3 L0 6 L-6 3 Z" />
+                  </g>
+                )}
+                {region.ports >= 3 && (
+                  <g
+                    className="map-marker map-marker--port"
+                    transform={`translate(${region.label[0] - 19} ${region.label[1] + 19})`}
+                    aria-hidden="true"
+                  >
+                    <circle r="5.5" />
+                    <path d="M0 -3 L0 3 M-3 0 Q0 5 3 0 M-2 -2 L2 -2" />
+                  </g>
+                )}
+                {region.garrison >= 75 && (
+                  <g
+                    className="map-marker map-marker--army"
+                    transform={`translate(${region.label[0] + 20} ${region.label[1] - 17})`}
+                    aria-hidden="true"
+                  >
+                    <rect x="-7" y="-5" width="14" height="10" rx="1" />
+                    <text textAnchor="middle" y="2.5">Ⅱ</text>
                   </g>
                 )}
               </g>
