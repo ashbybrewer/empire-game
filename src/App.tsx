@@ -29,13 +29,15 @@ import {
   Wheat,
   X,
 } from 'lucide-react'
+import { campaignPresets, defaultCampaign } from './campaigns'
 import { BattleModal } from './components/BattleModal'
 import { WorldMap } from './components/WorldMap'
-import { factions, initialEvents, regions as initialRegions } from './data'
+import { factions, regions as initialRegions } from './data'
 import type {
   BattlePlan,
   BattleResult,
   CampaignEvent,
+  CampaignPreset,
   MapLens,
   Region,
   Resources,
@@ -79,41 +81,85 @@ const formatPopulation = (value: number) => {
   return `${value.toFixed(1)}m`
 }
 
+const getOpeningEvents = (campaign: CampaignPreset): CampaignEvent[] => [
+  {
+    id: 1,
+    type: 'world',
+    title: campaign.title,
+    body: campaign.campaignSummary,
+    turn: 1,
+  },
+  {
+    id: 2,
+    type: 'conflict',
+    title: 'Borders under pressure',
+    body: `${factions[campaign.factionId].name} has called its leaders together to determine the coming season’s strategy.`,
+    turn: 1,
+  },
+  {
+    id: 3,
+    type: 'diplomacy',
+    title: 'Messengers return',
+    body: 'Neighboring powers are weighing trade, alliance, and the risk of open conflict.',
+    turn: 1,
+  },
+]
+
+const getPerspectiveRegions = (campaign: CampaignPreset): Region[] =>
+  initialRegions.map((region) => ({
+    ...region,
+    relation:
+      region.owner === campaign.factionId
+        ? 100
+        : campaign.rivalIds.includes(region.owner)
+          ? -35
+          : factions[region.owner]?.kind === 'sovereign'
+            ? 18
+            : 0,
+  }))
+
 function App() {
-  const [regions, setRegions] = useState<Region[]>(initialRegions)
-  const [selectedId, setSelectedId] = useState('gold-coast')
+  const [activeCampaign, setActiveCampaign] = useState<CampaignPreset>(defaultCampaign)
+  const [regions, setRegions] = useState<Region[]>(() => getPerspectiveRegions(defaultCampaign))
+  const [selectedId, setSelectedId] = useState(defaultCampaign.homeRegionId)
   const [lens, setLens] = useState<MapLens>('political')
   const [view, setView] = useState<View>('campaign')
   const [turn, setTurn] = useState(1)
-  const [resources, setResources] = useState<Resources>({
-    treasury: 2860,
-    supply: 74,
-    influence: 61,
-    legitimacy: 78,
-  })
-  const [events, setEvents] = useState<CampaignEvent[]>(initialEvents)
+  const [resources, setResources] = useState<Resources>(defaultCampaign.resources)
+  const [events, setEvents] = useState<CampaignEvent[]>(getOpeningEvents(defaultCampaign))
   const [battleRegion, setBattleRegion] = useState<Region | null>(null)
   const [battleResult, setBattleResult] = useState<BattleResult | null>(null)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const [briefOpen, setBriefOpen] = useState(false)
+  const [briefOpen, setBriefOpen] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
   const [zoom, setZoom] = useState(1)
-  const [tradePartners, setTradePartners] = useState<string[]>(['south-china'])
+  const [tradePartners, setTradePartners] = useState<string[]>(defaultCampaign.tradePartners)
   const toastTimerRef = useRef<number | null>(null)
   const eventIdRef = useRef(4)
 
   const selected = regions.find((region) => region.id === selectedId) ?? regions[0]
   const selectedFaction = factions[selected.owner]
-  const controlledRegions = regions.filter((region) => region.owner === 'britain')
+  const playerFactionId = activeCampaign.factionId
+  const playerFaction = factions[playerFactionId]
+  const controlledRegions = regions.filter((region) => region.owner === playerFactionId)
   const hasTradeAccord = tradePartners.includes(selected.id)
   const canProjectPower =
     selected.isCoastal || controlledRegions.some((region) => region.theater === selected.theater)
 
+  const homeRegion = regions.find((region) => region.id === activeCampaign.homeRegionId) ?? controlledRegions[0] ?? regions[0]
+  const objectiveProgress =
+    activeCampaign.objectiveMetric === 'accords'
+      ? Math.min(activeCampaign.objectiveTarget, tradePartners.length)
+      : Math.min(
+          activeCampaign.objectiveTarget,
+          controlledRegions.filter((region) => region.theater === homeRegion.theater).length,
+        )
+
   const date = useMemo(() => {
     const seasonIndex = (turn - 1) % 4
-    const year = 1836 + Math.floor((turn - 1) / 4)
+    const year = activeCampaign.startYear + Math.floor((turn - 1) / 4)
     return `${seasons[seasonIndex]} ${year}`
-  }, [turn])
+  }, [activeCampaign.startYear, turn])
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -147,6 +193,25 @@ function App() {
     setRegions((current) =>
       current.map((region) => (region.id === selected.id ? { ...region, ...changes } : region)),
     )
+  }
+
+  const formatTreasury = (value: number) =>
+    `${activeCampaign.treasuryPrefix}${value.toLocaleString()}${activeCampaign.treasuryPrefix ? 'k' : ''}`
+
+  const selectCampaign = (campaign: CampaignPreset) => {
+    setActiveCampaign(campaign)
+    setRegions(getPerspectiveRegions(campaign))
+    setSelectedId(campaign.homeRegionId)
+    setTurn(1)
+    setResources({ ...campaign.resources })
+    setTradePartners([...campaign.tradePartners])
+    setEvents(getOpeningEvents(campaign))
+    setBattleRegion(null)
+    setBattleResult(null)
+    setLens('political')
+    setView('campaign')
+    setBriefOpen(false)
+    showToast(`Now leading ${factions[campaign.factionId].name}`)
   }
 
   const handleTrade = () => {
@@ -242,7 +307,7 @@ function App() {
 
   const startCampaign = () => {
     if (!canProjectPower) {
-      showToast('No viable expedition route reaches this interior territory.')
+      showToast('No viable campaign route reaches this interior territory.')
       return
     }
     if (resources.supply < 16 && resources.influence < 12) {
@@ -271,7 +336,7 @@ function App() {
         if (result.victory) {
           return {
             ...region,
-            owner: 'britain',
+            owner: playerFactionId,
             resistance: Math.max(55, region.resistance - 8),
             relation: -65,
             garrison: 42,
@@ -317,30 +382,69 @@ function App() {
       legitimacy: Math.max(0, current.legitimacy - (controlledRegions.length > 4 ? 2 : 0)),
     }))
 
-    const worldEvents = [
-      {
-        title: 'French surveyors sighted on the Senegal',
-        body: 'Paris appears ready to offer arms in exchange for a coastal concession.',
-      },
-      {
-        title: 'A merchant convoy clears the Cape',
-        body: 'Tea, cotton, and machinery are moving again after the winter storms.',
-      },
-      {
-        title: 'Debate in the Commons',
-        body: 'Opposition members demand clearer limits on the cost of overseas campaigns.',
-      },
-      {
-        title: 'Qing customs officials issue new rules',
-        body: 'Foreign merchants will be confined to licensed warehouses this season.',
-      },
-    ]
+    const worldEvents =
+      playerFactionId === 'unitedStates'
+        ? [
+            {
+              title: 'Congress debates western appropriations',
+              body: 'Expansionists demand a larger army while opponents question the human and financial cost.',
+            },
+            {
+              title: 'Mexican diplomats lodge a protest',
+              body: 'Mexico rejects the latest boundary claim and reinforces the northern approaches.',
+            },
+            {
+              title: 'Treaty nations call a council',
+              body: 'Indigenous leaders warn that surveying parties have crossed recognized boundaries.',
+            },
+            {
+              title: 'Volunteer regiments assemble',
+              body: 'State governors offer new formations, but their training and discipline vary sharply.',
+            },
+          ]
+        : playerFaction.kind === 'sovereign'
+          ? [
+              {
+                title: 'Council runners return',
+                body: 'Neighboring leaders are prepared to discuss mutual defense and reciprocal trade.',
+              },
+              {
+                title: 'Surveyors cross a boundary',
+                body: 'A foreign mapping party has been sighted beyond the agreed frontier.',
+              },
+              {
+                title: 'Merchants offer powder and cloth',
+                body: 'The exchange would strengthen supply but may deepen dependence on a coastal power.',
+              },
+              {
+                title: 'Communities renew their levy',
+                body: 'Local defenders gather stores and report on roads, rivers, and mountain passes.',
+              },
+            ]
+          : [
+              {
+                title: 'French surveyors sighted on the Senegal',
+                body: 'Paris appears ready to offer arms in exchange for a coastal concession.',
+              },
+              {
+                title: 'A merchant convoy clears the Cape',
+                body: 'Tea, cotton, and machinery are moving again after the winter storms.',
+              },
+              {
+                title: 'Debate in the Commons',
+                body: 'Opposition members demand clearer limits on the cost of overseas campaigns.',
+              },
+              {
+                title: 'Qing customs officials issue new rules',
+                body: 'Foreign merchants will be confined to licensed warehouses this season.',
+              },
+            ]
     const next = worldEvents[(nextTurn - 2) % worldEvents.length]
     setEvents((current) => [
       { ...next, id: eventIdRef.current++, turn: nextTurn, type: 'world' as const },
       ...current,
     ].slice(0, 8))
-    showToast(`Turn advanced · +£${income}k revenue`)
+    showToast(`Turn advanced · +${formatTreasury(income)} revenue`)
   }
 
   return (
@@ -358,7 +462,7 @@ function App() {
         </div>
 
         <div className="campaign-title">
-          <span>THE GREAT GAME</span>
+          <span>{activeCampaign.title.toUpperCase()}</span>
           <button onClick={() => setBriefOpen(true)}>
             {date} <ChevronDown size={13} />
           </button>
@@ -367,7 +471,7 @@ function App() {
         <div className="resource-bar" aria-label="National resources">
           <div className="resource-item">
             <span className="resource-icon resource-icon--treasury"><Coins size={16} /></span>
-            <div><small>TREASURY</small><strong>£{resources.treasury.toLocaleString()}k</strong></div>
+            <div><small>{activeCampaign.treasuryLabel}</small><strong>{formatTreasury(resources.treasury)}</strong></div>
             <span className="resource-delta">+4.2%</span>
           </div>
           <div className="resource-item">
@@ -382,7 +486,7 @@ function App() {
           </div>
           <div className="resource-item">
             <span className="resource-icon"><Scale size={16} /></span>
-            <div><small>LEGITIMACY</small><strong>{resources.legitimacy}</strong></div>
+            <div><small>{activeCampaign.legitimacyLabel}</small><strong>{resources.legitimacy}</strong></div>
             <span className={`status-dot ${resources.legitimacy < 50 ? 'is-warning' : ''}`} />
           </div>
         </div>
@@ -434,10 +538,10 @@ function App() {
               <BookOpen size={19} strokeWidth={1.7} />
               <span>Codex</span>
             </button>
-            <div className="player-crest">
-              <Crown size={15} />
-              <span>BR</span>
-            </div>
+            <button className="player-crest" onClick={() => setBriefOpen(true)} aria-label="Change playable nation">
+              {playerFaction.kind === 'imperial' ? <Crown size={15} /> : <Shield size={15} />}
+              <span>{playerFaction.emblem}</span>
+            </button>
           </div>
         </aside>
 
@@ -454,13 +558,13 @@ function App() {
                 {view === 'campaign' && 'Theaters of influence'}
                 {view === 'diplomacy' && 'Treaties & relations'}
                 {view === 'ledger' && 'Global commerce'}
-                {view === 'military' && 'Expeditionary command'}
+                {view === 'military' && 'Field command'}
               </h1>
             </div>
 
             <div className="rivalry-strip">
               <span>RIVAL INTEREST</span>
-              {['france', 'portugal', 'netherlands'].map((factionId) => (
+              {activeCampaign.rivalIds.map((factionId) => (
                 <div className="rival-chip" key={factionId}>
                   <i style={{ background: factions[factionId].color }} />
                   {factions[factionId].shortName}
@@ -489,12 +593,12 @@ function App() {
                 <small>2 ACTIVE</small>
               </div>
               <div className="objective">
-                <div className="objective-ring" style={{ '--progress': `${(Math.min(3, tradePartners.length) / 3) * 100}%` } as React.CSSProperties}>
-                  <span>{Math.min(3, tradePartners.length)}/3</span>
+                <div className="objective-ring" style={{ '--progress': `${(objectiveProgress / activeCampaign.objectiveTarget) * 100}%` } as React.CSSProperties}>
+                  <span>{objectiveProgress}/{activeCampaign.objectiveTarget}</span>
                 </div>
                 <div>
-                  <strong>Commercial footholds</strong>
-                  <small>Sign three reciprocal trade accords</small>
+                  <strong>{activeCampaign.objectiveTitle}</strong>
+                  <small>{activeCampaign.objectiveBody}</small>
                 </div>
               </div>
               <div className="objective">
@@ -502,8 +606,8 @@ function App() {
                   <span>{resources.legitimacy}</span>
                 </div>
                 <div>
-                  <strong>Answer to Parliament</strong>
-                  <small>Keep legitimacy above 60</small>
+                  <strong>{playerFaction.kind === 'sovereign' ? 'Preserve council unity' : 'Answer to the government'}</strong>
+                  <small>Keep {activeCampaign.legitimacyLabel.toLowerCase()} above 60</small>
                 </div>
               </div>
             </div>
@@ -520,6 +624,8 @@ function App() {
                 selectedId={selected.id}
                 lens={lens}
                 tradePartners={tradePartners}
+                playerFactionId={playerFactionId}
+                tradeOrigin={homeRegion.label}
                 onSelect={(region) => setSelectedId(region.id)}
               />
             </div>
@@ -527,7 +633,7 @@ function App() {
             <div className="map-legend">
               {lens === 'political' && (
                 <>
-                  <span><i className="legend-dot legend-dot--player" /> Your administration</span>
+                  <span><i className="legend-dot legend-dot--player" style={{ background: playerFaction.color }} /> Your nation</span>
                   <span><i className="legend-dot legend-dot--rival" /> Rival power</span>
                   <span><i className="legend-dot legend-dot--sovereign" /> Sovereign polity</span>
                 </>
@@ -579,7 +685,7 @@ function App() {
             </div>
             <div className="sovereignty-line">
               <span style={{ background: selectedFaction.color }} />
-              <small>{selected.owner === 'britain' ? 'ADMINISTERED BY' : 'SOVEREIGNTY'}</small>
+              <small>{selected.owner === playerFactionId ? 'YOUR CONTROL' : 'SOVEREIGNTY'}</small>
               <strong>{selectedFaction.name}</strong>
             </div>
           </div>
@@ -638,11 +744,11 @@ function App() {
             </section>
 
             <section className="region-actions">
-              {selected.owner === 'britain' ? (
+              {selected.owner === playerFactionId ? (
                 <>
                   <button className="primary-action" onClick={handleInvest} disabled={resources.treasury < 240 || selected.prosperity >= 100}>
                     <Landmark size={16} />
-                    <span><strong>Invest in infrastructure</strong><small>£240k · prosperity +5</small></span>
+                    <span><strong>Invest in infrastructure</strong><small>{formatTreasury(240)} · prosperity +5</small></span>
                     <ChevronRight size={16} />
                   </button>
                   <button className="secondary-action" onClick={handleReinforce} disabled={resources.supply < 8 || selected.garrison >= 100}>
@@ -655,7 +761,7 @@ function App() {
                     <Ship size={16} />
                     <span>
                       <strong>{hasTradeAccord ? 'Trade accord active' : 'Propose trade accord'}</strong>
-                      <small>{hasTradeAccord ? '+£70k each turn' : '8 influence · peaceful access'}</small>
+                      <small>{hasTradeAccord ? `+${formatTreasury(70)} each turn` : '8 influence · peaceful access'}</small>
                     </span>
                     <ChevronRight size={16} />
                   </button>
@@ -665,9 +771,9 @@ function App() {
                       className="secondary-action secondary-action--danger"
                       onClick={startCampaign}
                       disabled={!canProjectPower || (resources.supply < 16 && resources.influence < 12)}
-                      title={!canProjectPower ? 'No expedition route' : undefined}
+                      title={!canProjectPower ? 'No campaign route' : undefined}
                     >
-                      <Swords size={15} /> {canProjectPower ? 'Convene council' : 'No route'}
+                      <Swords size={15} /> {canProjectPower ? activeCampaign.warActionLabel : 'No route'}
                     </button>
                   </div>
                 </>
@@ -676,7 +782,7 @@ function App() {
 
             <div className="panel-note">
               <ScrollText size={14} />
-              <span>Actions affect local prosperity, sovereignty, and your legitimacy at home.</span>
+              <span>Actions affect local prosperity, sovereignty, and {activeCampaign.legitimacyLabel.toLowerCase()} at home.</span>
             </div>
           </div>
         </aside>
@@ -685,7 +791,7 @@ function App() {
       {notificationsOpen && (
         <div className="dispatch-drawer">
           <div className="dispatch-header">
-            <div><span className="section-eyebrow">FOREIGN OFFICE</span><h3>Recent dispatches</h3></div>
+            <div><span className="section-eyebrow">{playerFaction.shortName.toUpperCase()} COUNCIL</span><h3>Recent dispatches</h3></div>
             <button className="icon-button" onClick={() => setNotificationsOpen(false)} aria-label="Close dispatches"><X size={16} /></button>
           </div>
           <div className="dispatch-list">
@@ -711,26 +817,48 @@ function App() {
           <div className="campaign-brief">
             <button className="icon-button modal-close" onClick={() => setBriefOpen(false)} aria-label="Close campaign brief" autoFocus><X size={18} /></button>
             <div className="brief-mark"><Compass size={31} /></div>
-            <span className="section-eyebrow">ALTERNATE-HISTORY CAMPAIGN · 1836</span>
-            <h2 id="brief-title">An age of contest</h2>
+            <span className="section-eyebrow">PLAYABLE CAMPAIGNS · 1836–1846</span>
+            <h2 id="brief-title">Choose a nation</h2>
             <p className="brief-lead">
-              Industrial empires are reaching across oceans, but the world is not empty territory. Established nations,
-              republics, kingdoms, and confederacies pursue their own diplomacy, commerce, and survival.
+              Lead the United States through Manifest Destiny, compete as a colonial empire, or command a sovereign
+              Indigenous nation resisting dispossession. Every campaign has its own economy, doctrine, dress, and weapons.
             </p>
-            <div className="brief-principles">
-              <div><Handshake size={20} /><strong>Diplomacy first</strong><span>Trade and treaties can achieve access without annexation.</span></div>
-              <div><Scale size={20} /><strong>Power has a cost</strong><span>Occupation drains supply and erodes legitimacy.</span></div>
-              <div><Shield size={20} /><strong>No generic armies</strong><span>Every polity fights through its terrain, institutions, and doctrine.</span></div>
+            <div className="campaign-picker">
+              {campaignPresets.map((campaign) => {
+                const faction = factions[campaign.factionId]
+                const isActive = campaign.id === activeCampaign.id
+                return (
+                  <button
+                    key={campaign.id}
+                    className={`campaign-card ${isActive ? 'is-active' : ''}`}
+                    onClick={() => selectCampaign(campaign)}
+                    aria-pressed={isActive}
+                  >
+                    <span className="campaign-card__emblem" style={{ color: faction.accent, borderColor: faction.color }}>
+                      {faction.emblem}
+                    </span>
+                    <span className="campaign-card__copy">
+                      <small>{campaign.subtitle.toUpperCase()}</small>
+                      <strong>{campaign.title}</strong>
+                      <span>{faction.name}</span>
+                      <p>{campaign.campaignSummary}</p>
+                      <em>{campaign.doctrine}</em>
+                    </span>
+                    <span className="campaign-card__action">{isActive ? 'CURRENT' : 'PLAY'}</span>
+                  </button>
+                )
+              })}
             </div>
             <div className="historical-note">
               <BookOpen size={17} />
               <p>
-                This scenario deliberately compresses history into an alternate 1836. It centers the agency and sovereignty
-                of colonized peoples; descriptions are concise game abstractions, not exhaustive cultural portraits.
+                “Manifest Destiny” is presented as the documented 1845 expansionist ideology, not as neutral progress.
+                Indigenous peoples are named as distinct sovereign nations. Uniform and equipment notes are dated,
+                source-linked battlefield abstractions rather than generic cultural costumes.
               </p>
             </div>
             <button className="brief-continue" onClick={() => setBriefOpen(false)}>
-              Return to the cabinet <ChevronRight size={16} />
+              Continue as {playerFaction.shortName} <ChevronRight size={16} />
             </button>
           </div>
         </div>
@@ -739,6 +867,7 @@ function App() {
       {battleRegion && (
         <BattleModal
           region={battleRegion}
+          playerFactionId={playerFactionId}
           resources={{ supply: resources.supply, influence: resources.influence }}
           onClose={() => setBattleRegion(null)}
           onResolve={resolveBattle}
@@ -753,9 +882,9 @@ function App() {
             <h2>{battleResult.title}</h2>
             <p>{battleResult.summary}</p>
             <div className="result-stat-row">
-              <div><small>EXPEDITION LOSSES</small><strong>{battleResult.casualties}%</strong></div>
+              <div><small>YOUR LOSSES</small><strong>{battleResult.casualties}%</strong></div>
               <div><small>DEFENDER LOSSES</small><strong>{battleResult.oppositionCasualties}%</strong></div>
-              <div><small>LEGITIMACY</small><strong className={battleResult.legitimacy < 0 ? 'is-negative' : ''}>{battleResult.legitimacy > 0 ? '+' : ''}{battleResult.legitimacy}</strong></div>
+              <div><small>{activeCampaign.legitimacyLabel}</small><strong className={battleResult.legitimacy < 0 ? 'is-negative' : ''}>{battleResult.legitimacy > 0 ? '+' : ''}{battleResult.legitimacy}</strong></div>
             </div>
             <button className="brief-continue" onClick={() => setBattleResult(null)} autoFocus>
               Return to campaign <ChevronRight size={16} />

@@ -6,6 +6,8 @@ interface WorldMapProps {
   selectedId: string
   lens: MapLens
   tradePartners: string[]
+  playerFactionId: string
+  tradeOrigin: [number, number]
   onSelect: (region: Region) => void
 }
 
@@ -30,7 +32,15 @@ function regionFill(region: Region, lens: MapLens) {
   return factions[region.owner]?.color ?? '#6b756d'
 }
 
-export function WorldMap({ regions, selectedId, lens, tradePartners, onSelect }: WorldMapProps) {
+export function WorldMap({
+  regions,
+  selectedId,
+  lens,
+  tradePartners,
+  playerFactionId,
+  tradeOrigin,
+  onSelect,
+}: WorldMapProps) {
   return (
     <div className="world-map">
       <svg
@@ -93,10 +103,11 @@ export function WorldMap({ regions, selectedId, lens, tradePartners, onSelect }:
             const destination = regions.find((region) => region.id === regionId)
             if (!destination) return null
             const [x, y] = destination.label
+            const [originX, originY] = tradeOrigin
             return (
               <path
                 key={`accord-${regionId}`}
-                d={`M 506 132 Q ${(506 + x) / 2} ${Math.max(52, Math.min(250, y - 105))} ${x} ${y}`}
+                d={`M ${originX} ${originY} Q ${(originX + x) / 2} ${Math.max(52, Math.min(250, Math.min(originY, y) - 75))} ${x} ${y}`}
                 className="trade-route trade-route--accord is-prominent"
               />
             )
@@ -137,7 +148,7 @@ export function WorldMap({ regions, selectedId, lens, tradePartners, onSelect }:
                     {factions[region.owner]?.shortName}
                   </text>
                 </g>
-                {region.owner === 'britain' && (
+                {region.owner === playerFactionId && (
                   <g className="player-standard" transform={`translate(${region.label[0] - 3} ${region.label[1] - 21})`}>
                     <path d="M0 0 L6 3 L0 6 L-6 3 Z" />
                   </g>

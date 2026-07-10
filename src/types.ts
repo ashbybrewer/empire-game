@@ -39,6 +39,28 @@ export interface Resources {
   legitimacy: number
 }
 
+export interface CampaignPreset {
+  id: string
+  factionId: string
+  title: string
+  subtitle: string
+  startYear: number
+  homeRegionId: string
+  treasuryLabel: string
+  treasuryPrefix: string
+  legitimacyLabel: string
+  resources: Resources
+  tradePartners: string[]
+  rivalIds: string[]
+  objectiveTitle: string
+  objectiveBody: string
+  objectiveTarget: number
+  objectiveMetric: 'accords' | 'regions'
+  doctrine: string
+  campaignSummary: string
+  warActionLabel: string
+}
+
 export interface CampaignEvent {
   id: number
   type: 'diplomacy' | 'trade' | 'conflict' | 'world'
