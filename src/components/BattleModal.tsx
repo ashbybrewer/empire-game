@@ -1,22 +1,26 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
   ArrowLeft,
   Check,
+  Cloudy,
   Crosshair,
-  Flag,
+  Droplets,
   Handshake,
-  Mountain,
   Shield,
+  SkipForward,
   Swords,
   Users,
   X,
 } from 'lucide-react'
 import { factions } from '../data'
+import { getMilitaryProfile } from '../militaryData'
 import type { BattlePlan, BattleResult, Region } from '../types'
+import { BattlefieldScene } from './BattlefieldScene'
 
 interface BattleModalProps {
   region: Region
+  playerFactionId: string
   resources: {
     supply: number
     influence: number
@@ -100,28 +104,18 @@ function localPlanModifiers(region: Region) {
   }
 }
 
-function oppositionUnits(region: Region) {
-  const doctrine = region.doctrine.toLowerCase()
-  if (doctrine.includes('mounted') || doctrine.includes('cavalry')) {
-    return ['Mounted vanguard', 'Main horse', 'Scouting screen', 'Reserve']
-  }
-  if (doctrine.includes('forest') || doctrine.includes('woodland') || doctrine.includes('dispersed')) {
-    return ['Forward screen', 'Left wing', 'Central body', 'Right wing']
-  }
-  if (doctrine.includes('stockade') || doctrine.includes('fortified')) {
-    return ['Outer works', 'Main stockade', 'Mobile reserve', 'River guard']
-  }
-  if (doctrine.includes('highland') || doctrine.includes('mountain')) {
-    return ['Pass guard', 'Highland host', 'Valley reserve', 'Supply guard']
-  }
-  return ['Vanguard', 'Left formation', 'Center formation', 'Right formation']
-}
-
-export function BattleModal({ region, resources, onClose, onResolve }: BattleModalProps) {
+export function BattleModal({ region, playerFactionId, resources, onClose, onResolve }: BattleModalProps) {
   const [selectedPlan, setSelectedPlan] = useState<BattlePlan>(
     resources.supply >= 22 ? 'adapt' : resources.supply >= 16 ? 'advance' : 'parley',
   )
+  const [effectsEnabled, setEffectsEnabled] = useState(true)
+  const [battlePhase, setBattlePhase] = useState<'planning' | 'engaging' | 'parley'>('planning')
+  const resolutionRef = useRef<{ result: BattleResult; plan: BattlePlan } | null>(null)
+  const resolutionTimerRef = useRef<number | null>(null)
   const opponent = factions[region.owner]
+  const playerFaction = factions[playerFactionId]
+  const playerProfile = getMilitaryProfile(playerFactionId)
+  const opponentProfile = getMilitaryProfile(region.owner)
   const modifiers = useMemo(() => localPlanModifiers(region), [region])
 
   const odds = useMemo(() => {
@@ -141,8 +135,24 @@ export function BattleModal({ region, resources, onClose, onResolve }: BattleMod
     return resources[cost.resource] >= cost.value
   }
 
+  useEffect(
+    () => () => {
+      if (resolutionTimerRef.current) window.clearTimeout(resolutionTimerRef.current)
+    },
+    [],
+  )
+
+  const completeResolution = () => {
+    const pending = resolutionRef.current
+    if (!pending) return
+    if (resolutionTimerRef.current) window.clearTimeout(resolutionTimerRef.current)
+    resolutionTimerRef.current = null
+    resolutionRef.current = null
+    onResolve(pending.result, pending.plan)
+  }
+
   const resolve = () => {
-    if (!canAffordPlan(selectedPlan)) return
+    if (!canAffordPlan(selectedPlan) || battlePhase !== 'planning') return
     const chance = odds[selectedPlan]
     const success = Math.random() * 100 <= chance
 
@@ -164,7 +174,9 @@ export function BattleModal({ region, resources, onClose, onResolve }: BattleMod
             oppositionCasualties: 0,
             legitimacy: 2,
           }
-      onResolve(result, selectedPlan)
+      resolutionRef.current = { result, plan: selectedPlan }
+      setBattlePhase('parley')
+      resolutionTimerRef.current = window.setTimeout(completeResolution, 1900)
       return
     }
 
@@ -183,12 +195,14 @@ export function BattleModal({ region, resources, onClose, onResolve }: BattleMod
       : {
           victory: false,
           title: aggressive ? 'The column is repulsed' : 'The advance is suspended',
-          summary: `${opponent.shortName} forces used ${region.terrain.toLowerCase()} and ${region.doctrine.toLowerCase()} to isolate the expedition from its supplies.`,
+          summary: `${opponent.shortName} forces used ${region.terrain.toLowerCase()} and ${region.doctrine.toLowerCase()} to isolate the field force from its supplies.`,
           casualties: aggressive ? 27 : 14,
           oppositionCasualties: aggressive ? 11 : 6,
           legitimacy: aggressive ? -10 : -4,
         }
-    onResolve(result, selectedPlan)
+    resolutionRef.current = { result, plan: selectedPlan }
+    setBattlePhase('engaging')
+    resolutionTimerRef.current = window.setTimeout(completeResolution, 3900)
   }
 
   return (
@@ -213,12 +227,14 @@ export function BattleModal({ region, resources, onClose, onResolve }: BattleMod
 
         <div className="battle-matchup">
           <div className="army-heading army-heading--player">
-            <span className="army-emblem">BR</span>
+            <span className="army-emblem" style={{ borderColor: playerFaction.accent, color: playerFaction.accent }}>
+              {playerFaction.emblem}
+            </span>
             <div>
-              <small>Expeditionary force</small>
-              <strong>Royal Field Column</strong>
+              <small>{playerFaction.kind === 'sovereign' ? 'Sovereign field force' : 'Campaign force'}</small>
+              <strong>{playerProfile.forceName}</strong>
             </div>
-            <span className="army-strength"><Users size={14} /> 8,400</span>
+            <span className="army-strength"><Users size={14} /> {Math.round(5600 + resources.supply * 40).toLocaleString()}</span>
           </div>
           <div className="battle-versus">
             <Swords size={17} />
@@ -227,7 +243,7 @@ export function BattleModal({ region, resources, onClose, onResolve }: BattleMod
           <div className="army-heading army-heading--opponent">
             <span className="army-strength"><Users size={14} /> {Math.round(region.garrison * 105).toLocaleString()}</span>
             <div>
-              <small>Sovereign defender</small>
+              <small>Defending field force</small>
               <strong>{opponent.name}</strong>
             </div>
             <span className="army-emblem" style={{ borderColor: opponent.accent, color: opponent.accent }}>
@@ -240,75 +256,48 @@ export function BattleModal({ region, resources, onClose, onResolve }: BattleMod
           <section className="battlefield-panel">
             <div className="battlefield-toolbar">
               <div>
-                <span className="section-eyebrow">TACTICAL ESTIMATE</span>
-                <strong>Ground before {region.name}</strong>
+                <span className="section-eyebrow">LIVE BATTLEFIELD · {region.terrain.toUpperCase()}</span>
+                <strong>{playerProfile.forceName} faces {opponentProfile.forceName}</strong>
               </div>
-              <div className="weather-chip"><Mountain size={13} /> Broken visibility</div>
+              <button
+                className={`effects-toggle ${effectsEnabled ? 'is-active' : ''}`}
+                onClick={() => setEffectsEnabled((current) => !current)}
+                aria-pressed={effectsEnabled}
+              >
+                <Cloudy size={13} />
+                <Droplets size={12} />
+                Smoke & blood
+                <b>{effectsEnabled ? 'ON' : 'OFF'}</b>
+              </button>
             </div>
 
-            <div className={`battlefield battlefield--${selectedPlan}`}>
-              <div className="battlefield-contours" />
-              <div className="battlefield-river" />
-              <div className="terrain-label terrain-label--ridge">RIDGELINE</div>
-              <div className="terrain-label terrain-label--road">MAIN ROAD</div>
-              <div className="terrain-label terrain-label--woods">{region.terrain.toUpperCase()}</div>
+            <BattlefieldScene
+              region={region}
+              playerFactionId={playerFactionId}
+              plan={selectedPlan}
+              phase={battlePhase}
+              effectsEnabled={effectsEnabled}
+            />
 
-              <div className="unit-line unit-line--player">
-                {['Rifles', '1st Line', 'Field Guns', '2nd Line'].map((unit, index) => (
-                  <div key={unit} className={`unit-token unit-token--player unit-token--${index + 1}`}>
-                    <span className="unit-token__symbol">{index === 2 ? '•••' : '×'}</span>
-                    <small>{unit}</small>
-                  </div>
-                ))}
-              </div>
-
-              <div className="unit-line unit-line--opponent">
-                {oppositionUnits(region).map((unit, index) => (
-                  <div
-                    key={unit}
-                    className={`unit-token unit-token--opponent unit-token--${index + 1}`}
-                    style={{ '--opponent-color': opponent.color } as React.CSSProperties}
-                  >
-                    <span className="unit-token__symbol">{index % 2 === 0 ? '◆' : '▲'}</span>
-                    <small>{unit}</small>
-                  </div>
-                ))}
-              </div>
-
-              <svg className="battle-arrows" viewBox="0 0 700 330" preserveAspectRatio="none" aria-hidden="true">
-                <defs>
-                  <marker id="arrowPlayer" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
-                    <path d="M0 0 L9 4.5 L0 9 Z" />
-                  </marker>
-                  <marker id="arrowParley" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
-                    <path d="M0 0 L9 4.5 L0 9 Z" />
-                  </marker>
-                </defs>
-                {selectedPlan === 'advance' && (
-                  <>
-                    <path className="plan-arrow" d="M260 270 Q280 195 300 132" />
-                    <path className="plan-arrow" d="M390 270 Q385 195 380 125" />
-                    <path className="plan-arrow" d="M510 270 Q490 195 475 140" />
-                  </>
-                )}
-                {selectedPlan === 'adapt' && (
-                  <>
-                    <path className="plan-arrow" d="M205 270 Q110 205 160 120" />
-                    <path className="plan-arrow" d="M350 270 Q350 192 360 128" />
-                    <path className="plan-arrow" d="M535 270 Q625 205 555 120" />
-                  </>
-                )}
-                {selectedPlan === 'parley' && (
-                  <path className="plan-arrow plan-arrow--parley" d="M350 270 Q350 205 350 170" />
-                )}
-              </svg>
-
-              {selectedPlan === 'parley' && (
-                <div className="parley-marker">
-                  <Flag size={17} />
-                  <span>Neutral ground</span>
+            <div className="kit-comparison">
+              <a href={playerProfile.sourceUrl} target="_blank" rel="noreferrer" className="kit-card">
+                <span style={{ background: playerFaction.color }} />
+                <div>
+                  <small>{playerProfile.dateRange}</small>
+                  <strong>{playerProfile.weapons}</strong>
+                  <p>{playerProfile.attire}</p>
+                  <em>{playerProfile.sourceLabel} ↗</em>
                 </div>
-              )}
+              </a>
+              <a href={opponentProfile.sourceUrl} target="_blank" rel="noreferrer" className="kit-card">
+                <span style={{ background: opponent.color }} />
+                <div>
+                  <small>{opponentProfile.dateRange}</small>
+                  <strong>{opponentProfile.weapons}</strong>
+                  <p>{opponentProfile.attire}</p>
+                  <em>{opponentProfile.sourceLabel} ↗</em>
+                </div>
+              </a>
             </div>
 
             <div className="doctrine-warning">
@@ -337,7 +326,7 @@ export function BattleModal({ region, resources, onClose, onResolve }: BattleMod
                     key={plan.id}
                     className={`plan-card ${isActive ? 'is-active' : ''}`}
                     onClick={() => setSelectedPlan(plan.id)}
-                    disabled={!isAffordable}
+                    disabled={!isAffordable || battlePhase !== 'planning'}
                     aria-pressed={isActive}
                   >
                     <span className="plan-card__icon"><Icon size={19} /></span>
@@ -372,12 +361,19 @@ export function BattleModal({ region, resources, onClose, onResolve }: BattleMod
               </div>
             </div>
 
-            <button className="commit-button" onClick={resolve} disabled={!canAffordPlan(selectedPlan)}>
-              {selectedPlan === 'parley' ? 'Send the delegation' : 'Issue field orders'}
-              <Swords size={16} />
-            </button>
+            {battlePhase === 'planning' ? (
+              <button className="commit-button" onClick={resolve} disabled={!canAffordPlan(selectedPlan)}>
+                {selectedPlan === 'parley' ? 'Send the delegation' : 'Issue field orders'}
+                <Swords size={16} />
+              </button>
+            ) : (
+              <button className="commit-button commit-button--live" onClick={completeResolution}>
+                Skip to field dispatch
+                <SkipForward size={16} />
+              </button>
+            )}
             <p className="battle-footnote">
-              Military control does not end local resistance. Occupation requires supply and political legitimacy.
+              Battlefield dress and arms are curated to the selected campaign year. Military control never erases local sovereignty.
             </p>
           </aside>
         </div>
