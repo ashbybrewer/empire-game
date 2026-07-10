@@ -501,14 +501,20 @@ function drawInfantry(
   moving: boolean,
   aiming: boolean,
   casualty: boolean,
+  effectsEnabled: boolean,
 ) {
   const bob = moving ? Math.sin(elapsed / 100 + soldier.index * 1.7) * 1.4 : Math.sin(elapsed / 420 + soldier.index) * 0.5
+  const deathTwist = casualty ? 1.55 + seeded(soldier.index, 2) * 0.5 : 0
   ctx.save()
   ctx.translate(x, groundY + bob)
   ctx.scale(scale * facing, scale)
   if (casualty) {
-    ctx.rotate(facing * 1.35)
-    ctx.translate(0, 13)
+    ctx.rotate(facing * deathTwist)
+    ctx.translate(seeded(soldier.index, 5) * 8, 16 + seeded(soldier.index, 6) * 6)
+  }
+
+  if (casualty && effectsEnabled) {
+    drawBloodPool(ctx, 0, 4, soldier.index, 1.2 + seeded(soldier.index, 7) * 0.8)
   }
 
   ctx.strokeStyle = '#202825'
@@ -542,6 +548,10 @@ function drawInfantry(
   ctx.lineWidth = 0.8
   ctx.stroke()
 
+  if (casualty || (effectsEnabled && soldier.variation > 0.82)) {
+    drawWoundMarks(ctx, facing, soldier.index)
+  }
+
   ctx.strokeStyle = profile.trim
   ctx.lineWidth = 1.1
   ctx.beginPath()
@@ -567,13 +577,35 @@ function drawInfantry(
   ctx.beginPath()
   ctx.arc(0, -29, 4.8, 0, Math.PI * 2)
   ctx.fill()
+  if (casualty) {
+    ctx.fillStyle = 'rgba(140, 20, 16, 0.75)'
+    ctx.beginPath()
+    ctx.arc(facing * 1.5, -28, 2.2, 0, Math.PI * 2)
+    ctx.fill()
+  }
   drawHeadgear(ctx, profile.headgear, profile, soldier.variation)
 
-  const weapon = soldier.firearm ? profile.primaryWeapon : profile.secondaryWeapon
-  drawWeapon(ctx, weapon, 1, aiming, profile)
-  drawShield(ctx, profile, 1, soldier.variation)
+  if (!casualty) {
+    const weapon = soldier.firearm ? profile.primaryWeapon : profile.secondaryWeapon
+    drawWeapon(ctx, weapon, 1, aiming, profile)
+    drawShield(ctx, profile, 1, soldier.variation)
+  } else {
+    // dropped weapon in the mud
+    ctx.save()
+    ctx.rotate(-0.9)
+    ctx.translate(8, 6)
+    drawWeapon(ctx, soldier.firearm ? profile.primaryWeapon : profile.secondaryWeapon, 0.85, false, profile)
+    ctx.restore()
+  }
 
   ctx.restore()
+
+  if (casualty && effectsEnabled) {
+    const sprayPulse = (elapsed / 220 + soldier.index * 0.13) % 1
+    if (sprayPulse < 0.35) {
+      drawBloodSpray(ctx, x, groundY - 8 * scale, facing, soldier.index, 0.85 + (1 - sprayPulse) * 0.6)
+    }
+  }
 }
 
 function drawMounted(
@@ -621,7 +653,7 @@ function drawMounted(
   ctx.lineTo(-23, -17)
   ctx.stroke()
   ctx.restore()
-  drawInfantry(ctx, x, groundY - 15 * scale, scale * 0.83, facing, profile, soldier, elapsed, moving, false, false)
+  drawInfantry(ctx, x, groundY - 15 * scale, scale * 0.83, facing, profile, soldier, elapsed, moving, false, false, true)
 }
 
 function drawSmoke(
@@ -632,13 +664,19 @@ function drawSmoke(
   facing: number,
   dense: boolean,
 ) {
-  const radius = 3 + life * (dense ? 28 : 18)
+  const radius = 5 + life * (dense ? 42 : 24)
   ctx.save()
-  ctx.globalAlpha = (1 - life) * (dense ? 0.62 : 0.34)
-  for (let puff = 0; puff < 4; puff += 1) {
-    ctx.fillStyle = puff % 2 ? '#d8d5c4' : '#aeb4a9'
+  ctx.globalAlpha = (1 - life * 0.85) * (dense ? 0.88 : 0.55)
+  for (let puff = 0; puff < 7; puff += 1) {
+    ctx.fillStyle = puff % 3 === 0 ? '#f0ebe0' : puff % 2 ? '#c5c2b4' : '#8f958c'
     ctx.beginPath()
-    ctx.arc(x + facing * life * 24 + puff * facing * 5, y - life * 17 + Math.sin(puff * 3.1) * 4, radius * (0.55 + puff * 0.12), 0, Math.PI * 2)
+    ctx.arc(
+      x + facing * life * 36 + puff * facing * 7,
+      y - life * 22 + Math.sin(puff * 2.4) * 7,
+      radius * (0.45 + puff * 0.11),
+      0,
+      Math.PI * 2,
+    )
     ctx.fill()
   }
   ctx.restore()
@@ -648,18 +686,194 @@ function drawMuzzleFlash(ctx: CanvasRenderingContext2D, x: number, y: number, fa
   ctx.save()
   ctx.translate(x, y)
   ctx.scale(facing, 1)
-  ctx.fillStyle = '#ffd47b'
+  ctx.globalAlpha = 0.95
+  ctx.fillStyle = '#ff9a3c'
   ctx.beginPath()
   ctx.moveTo(0, 0)
-  ctx.lineTo(16, -5)
-  ctx.lineTo(10, 1)
-  ctx.lineTo(17, 6)
+  ctx.lineTo(22, -8)
+  ctx.lineTo(12, 1)
+  ctx.lineTo(24, 9)
   ctx.closePath()
   ctx.fill()
-  ctx.fillStyle = '#fff1b0'
+  ctx.fillStyle = '#fff6c8'
   ctx.beginPath()
-  ctx.arc(2, 0, 3, 0, Math.PI * 2)
+  ctx.arc(3, 0, 4.5, 0, Math.PI * 2)
   ctx.fill()
+  ctx.restore()
+}
+
+function drawBloodSpray(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  facing: number,
+  seed: number,
+  intensity: number,
+) {
+  ctx.save()
+  ctx.globalAlpha = Math.min(1, 0.55 + intensity * 0.45)
+  const jets = 5 + Math.floor(seeded(seed, 3) * 5)
+  for (let j = 0; j < jets; j += 1) {
+    const angle = -1.1 + seeded(seed, j + 4) * 2.2
+    const length = 14 + seeded(seed, j + 11) * 38 * intensity
+    const ox = Math.cos(angle) * length * facing
+    const oy = Math.sin(angle) * length * 0.7 - 4
+    ctx.strokeStyle = j % 2 ? '#8b1512' : '#c41e18'
+    ctx.lineWidth = 1.4 + seeded(seed, j + 20) * 2.8
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    ctx.moveTo(x, y)
+    ctx.quadraticCurveTo(x + ox * 0.45, y + oy * 0.3 - 8, x + ox, y + oy)
+    ctx.stroke()
+    ctx.fillStyle = '#a01814'
+    ctx.beginPath()
+    ctx.arc(x + ox, y + oy, 1.5 + seeded(seed, j + 30) * 3.5, 0, Math.PI * 2)
+    ctx.fill()
+    for (let d = 0; d < 3; d += 1) {
+      ctx.beginPath()
+      ctx.arc(
+        x + ox * (0.4 + d * 0.2) + (seeded(seed, j + d + 40) - 0.5) * 10,
+        y + oy * (0.4 + d * 0.2) + seeded(seed, j + d + 50) * 6,
+        1 + d * 0.4,
+        0,
+        Math.PI * 2,
+      )
+      ctx.fill()
+    }
+  }
+  ctx.restore()
+}
+
+function drawBloodPool(ctx: CanvasRenderingContext2D, x: number, y: number, seed: number, size: number) {
+  ctx.save()
+  ctx.globalAlpha = 0.92
+  ctx.fillStyle = '#5a0c0c'
+  ctx.beginPath()
+  ctx.ellipse(x, y + 3, 10 * size + seeded(seed, 1) * 14, 4 * size + seeded(seed, 2) * 5, seeded(seed, 3) * 0.8, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = '#8f1410'
+  ctx.beginPath()
+  ctx.ellipse(x - 2, y + 2, 6 * size + seeded(seed, 4) * 8, 2.5 * size, -0.3, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = '#c21a14'
+  ctx.beginPath()
+  ctx.ellipse(x + 3, y + 1, 3.5 * size, 1.6 * size, 0.4, 0, Math.PI * 2)
+  ctx.fill()
+  for (let i = 0; i < 6; i += 1) {
+    ctx.fillStyle = i % 2 ? '#7a1210' : '#a81612'
+    ctx.beginPath()
+    ctx.arc(
+      x + (seeded(seed, i + 10) - 0.5) * 28 * size,
+      y + 2 + (seeded(seed, i + 20) - 0.5) * 10,
+      1.2 + seeded(seed, i + 30) * 2.8,
+      0,
+      Math.PI * 2,
+    )
+    ctx.fill()
+  }
+  ctx.restore()
+}
+
+function drawWoundMarks(ctx: CanvasRenderingContext2D, facing: number, seed: number) {
+  ctx.save()
+  ctx.globalAlpha = 0.95
+  ctx.fillStyle = '#9c1510'
+  ctx.beginPath()
+  ctx.ellipse(facing * 2, -18, 2.2, 3.5, 0.4, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = '#6a0e0c'
+  ctx.beginPath()
+  ctx.ellipse(facing * -1, -14, 1.6, 2.4, -0.3, 0, Math.PI * 2)
+  ctx.fill()
+  if (seeded(seed, 9) > 0.45) {
+    ctx.strokeStyle = '#b81814'
+    ctx.lineWidth = 1.6
+    ctx.beginPath()
+    ctx.moveTo(facing * 3, -22)
+    ctx.lineTo(facing * 8, -8)
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
+function drawMeleeClash(
+  ctx: CanvasRenderingContext2D,
+  elapsed: number,
+  intensity: number,
+) {
+  if (intensity <= 0.05) return
+  const centerX = 500
+  ctx.save()
+  // churned mud / blood strip where lines meet
+  ctx.globalAlpha = 0.75 * intensity
+  const strip = ctx.createLinearGradient(centerX - 120, 0, centerX + 120, 0)
+  strip.addColorStop(0, 'rgba(90, 12, 12, 0)')
+  strip.addColorStop(0.35, 'rgba(110, 14, 12, 0.55)')
+  strip.addColorStop(0.5, 'rgba(140, 18, 14, 0.7)')
+  strip.addColorStop(0.65, 'rgba(110, 14, 12, 0.55)')
+  strip.addColorStop(1, 'rgba(90, 12, 12, 0)')
+  ctx.fillStyle = strip
+  ctx.fillRect(centerX - 130, 300, 260, 160)
+
+  for (let i = 0; i < Math.floor(28 * intensity); i += 1) {
+    const x = centerX - 110 + seeded(i, 70) * 220
+    const y = 320 + seeded(i, 71) * 130
+    drawBloodPool(ctx, x, y, i + 200, 0.7 + seeded(i, 72) * 1.1)
+    if (seeded(i, 73) > 0.55) {
+      const pulse = (elapsed / 180 + i * 0.7) % 1
+      if (pulse < 0.45) {
+        drawBloodSpray(ctx, x, y - 18, seeded(i, 74) > 0.5 ? 1 : -1, i, 0.7 + pulse)
+      }
+    }
+  }
+
+  // impact flashes / steel sparks in the scrum
+  for (let i = 0; i < 10; i += 1) {
+    const flash = (elapsed / 140 + i * 1.3) % 1
+    if (flash > 0.12) continue
+    const x = centerX - 80 + seeded(i, 80) * 160
+    const y = 310 + seeded(i, 81) * 100
+    ctx.globalAlpha = (1 - flash / 0.12) * 0.85
+    ctx.fillStyle = '#ffe6a0'
+    ctx.beginPath()
+    ctx.arc(x, y, 3 + seeded(i, 82) * 5, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = '#c41e18'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(x - 8, y)
+    ctx.lineTo(x + 8, y - 4)
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
+function drawBattleSmokeBank(ctx: CanvasRenderingContext2D, elapsed: number, intensity: number) {
+  if (intensity <= 0) return
+  ctx.save()
+  for (let i = 0; i < 18; i += 1) {
+    const drift = ((elapsed / 40 + i * 37) % 280) - 40
+    const x = 280 + (i % 6) * 75 + Math.sin(elapsed / 600 + i) * 12
+    const y = 250 + Math.floor(i / 6) * 45 + Math.cos(elapsed / 500 + i) * 8
+    ctx.globalAlpha = 0.28 * intensity + seeded(i, 90) * 0.22
+    ctx.fillStyle = i % 2 ? '#d9d4c6' : '#9ea49a'
+    ctx.beginPath()
+    ctx.ellipse(x + drift * 0.15, y, 38 + seeded(i, 91) * 40, 18 + seeded(i, 92) * 16, 0.2, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.restore()
+}
+
+function drawBloodDecals(ctx: CanvasRenderingContext2D, count: number, intensity: number) {
+  ctx.save()
+  for (let i = 0; i < count; i += 1) {
+    const x = 260 + seeded(i, 51) * 480
+    const y = 300 + seeded(i, 52) * 170
+    drawBloodPool(ctx, x, y, i, 0.85 + intensity * seeded(i, 53) * 1.4)
+    if (intensity > 0.4 && seeded(i, 56) > 0.4) {
+      drawBloodSpray(ctx, x, y - 10, seeded(i, 57) > 0.5 ? 1 : -1, i + 50, intensity * 0.8)
+    }
+  }
   ctx.restore()
 }
 
@@ -852,25 +1066,6 @@ function drawRegimentalStandard(
   ctx.stroke()
 }
 
-function drawBloodDecals(ctx: CanvasRenderingContext2D, count: number, intensity: number) {
-  ctx.save()
-  ctx.globalAlpha = 0.55 * intensity
-  for (let i = 0; i < count; i += 1) {
-    const x = 320 + seeded(i, 51) * 360
-    const y = 330 + seeded(i, 52) * 150
-    ctx.fillStyle = i % 3 === 0 ? '#4a1010' : i % 2 ? '#5f1716' : '#8a221c'
-    ctx.beginPath()
-    ctx.ellipse(x, y, 6 + seeded(i, 53) * 14, 2.5 + seeded(i, 54) * 6, seeded(i, 55) * Math.PI, 0, Math.PI * 2)
-    ctx.fill()
-    for (let drop = 0; drop < 5; drop += 1) {
-      ctx.beginPath()
-      ctx.arc(x + (seeded(i + drop, 57) - 0.5) * 34, y + (seeded(i + drop, 58) - 0.5) * 16, 1.2 + drop * 0.55, 0, Math.PI * 2)
-      ctx.fill()
-    }
-  }
-  ctx.restore()
-}
-
 function drawFormation(
   ctx: CanvasRenderingContext2D,
   soldiers: SoldierSeed[],
@@ -882,13 +1077,15 @@ function drawFormation(
   effectsEnabled: boolean,
 ) {
   const facing = side === 'player' ? 1 : -1
-  const phaseProgress = phase === 'engaging' ? Math.min(1, elapsed / 5200) : 0
+  const phaseProgress = phase === 'engaging' ? Math.min(1, elapsed / 4800) : 0
   const baseX = side === 'player' ? 62 : 938
   const direction = side === 'player' ? 1 : -1
   const isZulu = profile.factionId === 'zulu'
   const mountedCount = soldiers.filter((soldier) => soldier.mounted).length
   const meleeRush = profile.firearmRatio < 0.45
-  const casualtyMod = side === 'opponent' && meleeRush ? 11 : side === 'player' && meleeRush ? 17 : side === 'player' ? 29 : 23
+  // Fall often — this is a meat grinder, not a parade
+  const casualtyMod =
+    side === 'opponent' && meleeRush ? 5 : side === 'player' && meleeRush ? 7 : side === 'player' ? 9 : 6
 
   const positioned = soldiers.map((soldier) => {
     let columnDepth = 0
@@ -927,12 +1124,13 @@ function drawFormation(
       scale = 0.48 + footRow * 0.052
     }
 
+    // Drive both sides into a brutal midfield scrum
     const rowAdvance = isZulu
-      ? phaseProgress * (plan === 'advance' ? 275 : 220)
+      ? phaseProgress * (plan === 'advance' ? 310 : 265)
       : meleeRush
-        ? phaseProgress * (plan === 'advance' ? 240 : 195)
-        : phaseProgress * (side === 'player' ? (plan === 'advance' ? 165 : 125) : 112)
-    const wingSurge = isZulu && soldier.index >= 120 ? phaseProgress * 52 : 0
+        ? phaseProgress * (plan === 'advance' ? 290 : 250)
+        : phaseProgress * (side === 'player' ? (plan === 'advance' ? 250 : 210) : 230)
+    const wingSurge = isZulu && soldier.index >= 120 ? phaseProgress * 64 : 0
     const x = baseX + direction * (columnDepth + rowAdvance + wingSurge)
 
     return { soldier, x, groundY, scale }
@@ -941,18 +1139,28 @@ function drawFormation(
   positioned
     .sort((left, right) => left.groundY - right.groundY)
     .forEach(({ soldier, x, groundY, scale }) => {
-      const casualty =
-        phase === 'engaging' &&
-        phaseProgress > (meleeRush ? 0.36 : 0.48) &&
-        ((soldier.index + (side === 'player' ? 3 : 0)) % casualtyMod === 0)
+      const hitWave = phase === 'engaging' && phaseProgress > 0.22
+      const earlyHits = hitWave && ((soldier.index + side.length) % (casualtyMod + 4) === 0) && phaseProgress > 0.28
+      const lateHits = hitWave && ((soldier.index + (side === 'player' ? 3 : 1)) % casualtyMod === 0) && phaseProgress > 0.4
+      const meleeKill =
+        hitWave &&
+        phaseProgress > 0.55 &&
+        Math.abs(x - 500) < 130 &&
+        ((soldier.index * 7) % 4 === 0)
+      const casualty = earlyHits || lateHits || meleeKill
       const volleyCycle =
-        (elapsed / 2050 + soldier.row * 0.12 + soldier.column * 0.002 + (side === 'player' ? 0 : 0.48)) % 1
-      const aiming = phase === 'engaging' && soldier.firearm && (volleyCycle < 0.15 || volleyCycle > 0.78)
+        (elapsed / 1450 + soldier.row * 0.1 + soldier.column * 0.002 + (side === 'player' ? 0 : 0.48)) % 1
+      const aiming = phase === 'engaging' && soldier.firearm && !casualty && (volleyCycle < 0.18 || volleyCycle > 0.72)
       const moving =
         phase === 'engaging' &&
-        phaseProgress < 0.9 &&
-        (isZulu || soldier.mounted || elapsed > 1450) &&
+        phaseProgress < 0.92 &&
+        !casualty &&
+        (isZulu || meleeRush || soldier.mounted || elapsed > 900) &&
         !aiming
+
+      if (casualty && effectsEnabled) {
+        drawBloodPool(ctx, x, groundY + 2, soldier.index, 1.1 + seeded(soldier.index, 12) * 0.9)
+      }
 
       ctx.fillStyle = 'rgba(5, 15, 13, .32)'
       ctx.beginPath()
@@ -962,7 +1170,15 @@ function drawFormation(
       if (soldier.mounted && !casualty) {
         drawMounted(ctx, x, groundY, scale, facing, profile, soldier, elapsed, moving)
       } else {
-        drawInfantry(ctx, x, groundY, scale, facing, profile, soldier, elapsed, moving, aiming, casualty)
+        drawInfantry(ctx, x, groundY, scale, facing, profile, soldier, elapsed, moving, aiming, casualty, effectsEnabled)
+      }
+
+      if (effectsEnabled && !casualty && phase === 'engaging' && phaseProgress > 0.5 && Math.abs(x - 500) < 90) {
+        // bayonet / spear impact spurts in the scrum
+        const clashPulse = (elapsed / 160 + soldier.index * 0.19) % 1
+        if (clashPulse < 0.2) {
+          drawBloodSpray(ctx, x + facing * 6, groundY - 16 * scale, facing, soldier.index + 99, 1)
+        }
       }
 
       if (effectsEnabled && soldier.firearm && !casualty) {
@@ -970,17 +1186,21 @@ function drawFormation(
           phase === 'engaging'
             ? volleyCycle
             : (elapsed / 6200 + soldier.index * 0.071 + (side === 'player' ? 0 : 0.43)) % 1
-        if (shotCycle < 0.32 && (phase === 'engaging' || soldier.index % 18 === 0)) {
+        if (shotCycle < 0.4 && (phase === 'engaging' || soldier.index % 12 === 0)) {
           const muzzleX = x + facing * 18 * scale
           const muzzleY = groundY - 20 * scale
-          drawSmoke(ctx, muzzleX, muzzleY, shotCycle / 0.32, facing, phase === 'engaging')
-          if (shotCycle < 0.035 && phase === 'engaging') drawMuzzleFlash(ctx, muzzleX, muzzleY, facing)
+          drawSmoke(ctx, muzzleX, muzzleY, shotCycle / 0.4, facing, true)
+          if (shotCycle < 0.05 && phase === 'engaging') drawMuzzleFlash(ctx, muzzleX, muzzleY, facing)
+          // ball impact blood on the opposite direction occasionally
+          if (phase === 'engaging' && shotCycle < 0.08 && soldier.index % 5 === 0) {
+            drawBloodSpray(ctx, x + facing * 40, groundY - 18, facing, soldier.index + 3, 0.7)
+          }
         }
       }
     })
 
   const standardY = isZulu ? 366 : 316
-  const standardX = baseX + direction * (isZulu ? 145 : 135) + direction * phaseProgress * 120
+  const standardX = baseX + direction * (isZulu ? 145 : 135) + direction * phaseProgress * 160
   drawRegimentalStandard(ctx, standardX, standardY, facing, profile, elapsed)
 }
 
@@ -1027,13 +1247,18 @@ export function BattlefieldScene({
     resize()
 
     const draw = (time: number) => {
-      const elapsed = reducedMotion ? 900 : time - sceneStart
+      const elapsed = reducedMotion ? 2200 : time - sceneStart
+      const engageProgress = phase === 'engaging' ? Math.min(1, elapsed / 4800) : 0
       context.clearRect(0, 0, BASE_WIDTH, BASE_HEIGHT)
       drawMap(context, mapKind, elapsed)
 
       if (effectsEnabled) {
-        const bloodCount = phase === 'engaging' ? (savageClash ? 42 : 22) : savageClash ? 8 : 3
-        drawBloodDecals(context, bloodCount, phase === 'engaging' ? Math.min(1, elapsed / 1400) : 0.4)
+        const goreBoost = savageClash ? 1.35 : 1
+        const bloodCount = Math.floor(
+          (phase === 'engaging' ? 70 + Math.floor(engageProgress * 55) : 14) * goreBoost,
+        )
+        drawBloodDecals(context, bloodCount, phase === 'engaging' ? Math.min(1, 0.5 + engageProgress) : 0.6)
+        drawBattleSmokeBank(context, elapsed, phase === 'engaging' ? 0.6 + engageProgress * 0.5 : 0.18)
       }
 
       drawFormation(context, opponentSoldiers, opponentProfile, 'opponent', elapsed, phase, plan, effectsEnabled)
@@ -1041,9 +1266,16 @@ export function BattlefieldScene({
       drawFormation(context, playerSoldiers, playerProfile, 'player', elapsed, phase, plan, effectsEnabled)
       drawArtilleryBattery(context, playerProfile, 'player', elapsed, phase, effectsEnabled)
 
-      const vignette = context.createRadialGradient(500, 270, 170, 500, 270, 620)
+      if (effectsEnabled && phase === 'engaging') {
+        drawMeleeClash(context, elapsed, Math.max(0, (engageProgress - 0.35) / 0.65))
+        // lingering powder fog over the kill zone
+        drawBattleSmokeBank(context, elapsed + 400, 0.35 + engageProgress * 0.5)
+      }
+
+      const vignette = context.createRadialGradient(500, 270, 140, 500, 270, 620)
       vignette.addColorStop(0, 'rgba(5, 13, 13, 0)')
-      vignette.addColorStop(1, 'rgba(3, 10, 10, .52)')
+      vignette.addColorStop(0.7, 'rgba(20, 4, 4, .18)')
+      vignette.addColorStop(1, 'rgba(3, 8, 8, .62)')
       context.fillStyle = vignette
       context.fillRect(0, 0, BASE_WIDTH, BASE_HEIGHT)
 
@@ -1069,9 +1301,7 @@ export function BattlefieldScene({
 
   const sceneStatus =
     phase === 'engaging'
-      ? savageClash
-        ? 'Musket volleys · bayonet clash · spear charge in the smoke'
-        : 'Artillery firing · line volleys · formations advancing'
+      ? 'Powder smoke · bayonet scrum · the field runs red'
       : phase === 'parley'
         ? 'Delegations moving to neutral ground'
         : 'Forces deployed · awaiting orders'

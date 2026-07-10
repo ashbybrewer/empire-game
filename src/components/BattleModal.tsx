@@ -230,7 +230,7 @@ export function BattleModal({ region, playerFactionId, resources, onClose, onRes
         }
     resolutionRef.current = { result, plan: selectedPlan }
     setBattlePhase('engaging')
-    resolutionTimerRef.current = window.setTimeout(completeResolution, asymmetric ? 6800 : 5600)
+    resolutionTimerRef.current = window.setTimeout(completeResolution, asymmetric ? 8200 : 7200)
   }
 
   return (
