@@ -60,7 +60,8 @@ function regionFill(region: Region, lens: MapLens) {
 }
 
 function polygonPath(coordinates: [number, number][]) {
-  const polygon: Polygon = { type: 'Polygon', coordinates: [coordinates] }
+  // d3-geo uses clockwise exterior rings for spherical polygons.
+  const polygon: Polygon = { type: 'Polygon', coordinates: [[...coordinates].reverse()] }
   return makePath(polygon) ?? ''
 }
 
