@@ -334,18 +334,8 @@ const RESC = [[0,0],[10,0],[14,1500],[24,8000],[36,25000],[60,45000],[90,60000]]
 
 const ENTRY_TIME = { mrgo: 4.5, ihnc: 5.0, noeL: 6.2, b17: 6.5, lonS: 6.6, giww: 6.7, lonN: 7.9, gravity: 8.5, jeff: 3, none: 1e9 };
 
-const CANALS = [
-  { name: '17th St Canal', latlngs: [[30.027,-90.1215],[29.978,-90.1215]] },
-  { name: 'Orleans Ave Canal', latlngs: [[30.025,-90.101],[29.982,-90.101]] },
-  { name: 'London Ave Canal', latlngs: [[30.023,-90.076],[29.984,-90.076]] },
-  { name: 'IHNC / Industrial Canal', latlngs: [[30.022,-90.027],[29.945,-90.027]] },
-  { name: 'GIWW', latlngs: [[29.980,-90.027],[29.980,-89.900]] },
-  { name: 'MR-GO', latlngs: [[29.980,-90.010],[29.940,-89.880]] }
-];
+const CANALS = []; // replaced by data/nola-canals.geojson (real OSM + channel centerlines)
 
 const LEVEES = [
-  { name: 'Lakefront', latlngs: [[30.027,-90.185],[30.027,-90.125],[30.025,-90.095],[30.022,-90.040],[30.018,-89.920]] },
-  { name: '17th St walls', latlngs: [[30.027,-90.1228],[29.978,-90.1228]] },
-  { name: 'London walls', latlngs: [[30.023,-90.0772],[29.984,-90.0772]] },
-  { name: 'IHNC walls', latlngs: [[30.022,-90.0285],[29.945,-90.0285]] }
+  { name: 'Lakefront levee', latlngs: [[30.0275,-90.185],[30.0278,-90.140],[30.0275,-90.122],[30.0265,-90.101],[30.0255,-90.076],[30.023,-90.040],[30.020,-89.960],[30.017,-89.920]] }
 ];

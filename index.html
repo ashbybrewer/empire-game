@@ -42,15 +42,25 @@
   .tb-meta b{color:var(--ink);font-size:12px;letter-spacing:.05em}
   .tb-meta div:last-child{border-bottom:none}
 
-  main{max-width:1440px;margin:0 auto;padding:14px;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px}
-  @media(max-width:980px){main{grid-template-columns:1fr}}
+  main{
+    max-width:1600px;margin:0 auto;padding:10px 14px 14px;
+    display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px;
+    align-items:start}
+  .left-col{display:flex;flex-direction:column;gap:12px;min-width:0}
+  @media(max-width:980px){
+    main{grid-template-columns:1fr}
+    #sidecard{max-height:none;position:static}
+  }
   section.card{background:var(--panel);border:1px solid var(--line)}
+  #sidecard{
+    max-height:calc(100vh - 100px);
+    overflow-y:auto;position:sticky;top:8px;scrollbar-width:thin}
   .card-h{display:flex;align-items:center;justify-content:space-between;gap:10px;
     padding:8px 12px;border-bottom:1px solid var(--line);font-size:10px;letter-spacing:.22em;
     text-transform:uppercase;color:var(--muted)}
   .card-h b{color:var(--cyan);font-weight:600}
 
-  #mapwrap{position:relative;overflow:hidden;height:min(72vh,720px);min-height:420px;background:var(--film2)}
+  #mapwrap{position:relative;overflow:hidden;height:min(50vh,500px);min-height:340px;background:var(--film2)}
   #leaflet{position:absolute;inset:0;z-index:1}
   .leaflet-container{background:#0A111C;font-family:var(--mono)}
   .leaflet-control-attribution{font-size:9px;background:rgba(10,17,28,.75)!important;color:var(--muted)!important}
@@ -142,7 +152,7 @@
   td.d{font-family:var(--disp);font-size:15px;font-weight:600}
   tr.wet td.d{color:var(--cyan)} tr.deep td.d{color:var(--breach)}
 
-  #log{max-height:280px;overflow-y:auto;scrollbar-width:thin}
+  #log{max-height:220px;overflow-y:auto;scrollbar-width:thin}
   .ev{padding:7px 12px;border-bottom:1px dashed rgba(29,49,73,.7);opacity:.28;transition:opacity .25s;cursor:pointer}
   .ev.past{opacity:1}
   .ev.now{background:rgba(255,90,69,.08)}
@@ -151,15 +161,26 @@
   .ev .h{font-family:var(--disp);font-size:15px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;line-height:1.1}
   .ev p{font-size:10.5px;color:var(--muted);margin-top:2px}
 
-  #tlcard{grid-column:1/-1}
-  #tl{position:relative;padding:6px 12px 10px}
-  #hydro{display:block;width:100%;height:150px;cursor:crosshair;touch-action:none}
-  .tl-ctl{display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid var(--line);flex-wrap:wrap}
+  #tlcard{/* under map in col 1 */}
+  #tl{position:relative;padding:6px 12px 8px}
+  #hydro{display:block;width:100%;height:120px;cursor:crosshair;touch-action:none}
+  #hydrotip{position:absolute;z-index:5;display:none;pointer-events:none;min-width:160px;max-width:260px;
+    padding:7px 10px;background:rgba(10,17,28,.96);border:1px solid var(--line);font-size:10.5px;
+    box-shadow:0 8px 20px rgba(0,0,0,.45)}
+  #hydrotip.on{display:block}
+  #hydrotip .ht{color:var(--amber);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase}
+  #hydrotip .ht.sev{color:var(--breach)}
+  #hydrotip .hh{font-family:var(--disp);font-size:15px;font-weight:600;text-transform:uppercase;
+    letter-spacing:.03em;line-height:1.15;margin-top:2px}
+  #hydrotip .hp{color:var(--muted);font-size:10.5px;margin-top:3px}
+  .tl-ctl{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--line);flex-wrap:wrap}
   .btn{font-family:var(--disp);font-size:15px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
-    background:var(--cyan);color:#07131f;border:none;padding:7px 18px;cursor:pointer}
+    background:var(--cyan);color:#07131f;border:none;padding:7px 16px;cursor:pointer}
   .btn:hover{background:#9AD5E8}
+  .btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);font-size:13px;padding:5px 10px}
+  .btn.ghost:hover{color:var(--ink);border-color:var(--cyan)}
   .spd{background:none;border:1px solid var(--line);color:var(--muted);font-family:var(--mono);
-    font-size:10px;padding:5px 9px;cursor:pointer}
+    font-size:10px;padding:5px 8px;cursor:pointer}
   .spd.on{color:var(--ink);border-color:var(--cyan)}
   #tlhint{font-size:9.5px;color:var(--muted);margin-left:auto}
 
@@ -195,6 +216,7 @@
 </header>
 
 <main>
+  <div class="left-col">
   <section class="card" id="mapcard">
     <div class="card-h"><b>Sheet 1 — Protection System &amp; Basin Filling</b><span id="floodpct-h">—</span></div>
     <div id="mapwrap">
@@ -217,7 +239,29 @@
     </div>
   </section>
 
-  <section class="card">
+  <section class="card" id="tlcard">
+    <div class="card-h"><b>Sheet 3 — Master Hydrograph &amp; Breach Sequence</b>
+      <span>lake (cyan) · IHNC (amber) · hover pins for events</span></div>
+    <div id="tl">
+      <canvas id="hydro"></canvas>
+      <div id="hydrotip"></div>
+    </div>
+    <div class="tl-ctl">
+      <button class="btn" id="play">▶ Run</button>
+      <button class="btn ghost" id="stepBack" title="Back 1 minute">−1m</button>
+      <button class="btn ghost" id="stepFwd" title="Forward 1 minute">+1m</button>
+      <button class="spd" data-s="0.0167">1m/s</button>
+      <button class="spd" data-s="0.0833">5m/s</button>
+      <button class="spd on" data-s="0.25">15m/s</button>
+      <button class="spd" data-s="1">1h/s</button>
+      <button class="spd" data-s="3">3h/s</button>
+      <button class="spd" data-s="8">8h/s</button>
+      <span id="tlhint">drag · hover pins · ← → = 1 min · slow speeds for the breach cascade</span>
+    </div>
+  </section>
+  </div>
+
+  <section class="card" id="sidecard">
     <div class="card-h"><b>Sheet 2 — System State</b><span>live w/ timeline</span></div>
 
     <div class="stat">
@@ -257,20 +301,6 @@
     <div class="stat" style="padding:0">
       <div class="lbl" style="padding:10px 12px 4px">Event log</div>
       <div id="log"></div>
-    </div>
-  </section>
-
-  <section class="card" id="tlcard">
-    <div class="card-h"><b>Sheet 3 — Master Hydrograph &amp; Breach Sequence</b>
-      <span>lake stage (cyan) · IHNC stage (amber) · scrub or press play</span></div>
-    <div id="tl"><canvas id="hydro"></canvas></div>
-    <div class="tl-ctl">
-      <button class="btn" id="play">▶ Run</button>
-      <button class="spd" data-s="0.5">½×</button>
-      <button class="spd on" data-s="1">1×</button>
-      <button class="spd" data-s="3">3×</button>
-      <button class="spd" data-s="8">8×</button>
-      <span id="tlhint">drag hydrograph · click a pin · ← → step 15 min · map stays put while playing</span>
     </div>
   </section>
 </main>
