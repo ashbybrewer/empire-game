@@ -6,37 +6,21 @@
 <title>FLOOD FIGHT LOST — The Failure of the New Orleans Hurricane Protection System, Aug 28 – Sep 1, 2005</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <style>
   :root{
-    --film:#0A111C;
-    --film2:#0D1624;
-    --panel:#0F1B2C;
-    --line:#1D3149;
-    --ink:#E8E2D4;
-    --muted:#8CA0B3;
-    --cyan:#7FC4DC;
-    --water0:#0E3A5C;
-    --water1:#1B5E8C;
-    --breach:#FF5A45;
-    --amber:#FFB454;
-    --ok:#69C98F;
-    --land-hi:#4A5240;
-    --land0:#39443C;
-    --land-2:#30414C;
-    --land-4:#283B58;
-    --land-6:#203764;
-    --mono:'IBM Plex Mono',monospace;
-    --disp:'Barlow Condensed',sans-serif;
+    --film:#0A111C; --film2:#0D1624; --panel:#0F1B2C; --line:#1D3149;
+    --ink:#E8E2D4; --muted:#8CA0B3; --cyan:#7FC4DC; --water1:#1B5E8C;
+    --breach:#FF5A45; --amber:#FFB454; --ok:#69C98F;
+    --mono:'IBM Plex Mono',monospace; --disp:'Barlow Condensed',sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{background:var(--film);color:var(--ink);font-family:var(--mono);font-size:13px;line-height:1.5}
   ::selection{background:var(--breach);color:#0A111C}
 
-  #boot{
-    position:fixed;inset:0;z-index:100;background:var(--film);
-    display:flex;flex-direction:column;align-items:center;justify-content:center;
-    font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;
-    color:var(--cyan);gap:14px;transition:opacity .4s,visibility .4s}
+  #boot{position:fixed;inset:0;z-index:100;background:var(--film);display:flex;flex-direction:column;
+    align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--cyan);gap:14px;transition:opacity .4s,visibility .4s}
   #boot.done{opacity:0;visibility:hidden;pointer-events:none}
   #boot .spin{width:28px;height:28px;border:2px solid var(--line);border-top-color:var(--cyan);
     border-radius:50%;animation:spin .8s linear infinite}
@@ -47,7 +31,7 @@
     repeating-linear-gradient(90deg,transparent 0 119px,rgba(29,49,73,.35) 119px 120px),var(--film2)}
   .tb{display:grid;grid-template-columns:1fr auto;gap:0;max-width:1440px;margin:0 auto}
   .tb-main{padding:22px 26px 18px;border-right:1px solid var(--line)}
-  .eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.28em;color:var(--amber);text-transform:uppercase}
+  .eyebrow{font-size:10px;letter-spacing:.28em;color:var(--amber);text-transform:uppercase}
   h1{font-family:var(--disp);font-weight:700;font-size:clamp(30px,4.4vw,52px);line-height:.95;
      letter-spacing:.015em;text-transform:uppercase;margin-top:6px}
   h1 .thin{font-weight:400;color:var(--cyan)}
@@ -66,11 +50,28 @@
     text-transform:uppercase;color:var(--muted)}
   .card-h b{color:var(--cyan);font-weight:600}
 
-  #mapwrap{position:relative;overflow:hidden;aspect-ratio:1200/820;background:var(--film2)}
-  #map{display:block;width:100%;height:auto;position:relative;z-index:1}
-  #fabric{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;opacity:1}
-  #floodcanvas{position:absolute;inset:0;width:100%;height:100%;z-index:3;pointer-events:none;
-    mix-blend-mode:normal}
+  #mapwrap{position:relative;overflow:hidden;height:min(72vh,720px);min-height:420px;background:var(--film2)}
+  #leaflet{position:absolute;inset:0;z-index:1}
+  .leaflet-container{background:#0A111C;font-family:var(--mono)}
+  .leaflet-control-attribution{font-size:9px;background:rgba(10,17,28,.75)!important;color:var(--muted)!important}
+  .leaflet-control-attribution a{color:var(--cyan)!important}
+  .leaflet-bar a{background:rgba(15,27,44,.92)!important;color:var(--ink)!important;border-color:var(--line)!important}
+  .leaflet-bar a:hover{background:rgba(30,50,70,.95)!important}
+
+  .zone-label{background:none;border:none}
+  .zone-label span{display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:.14em;
+    color:rgba(232,226,212,.9);text-shadow:0 1px 3px rgba(0,0,0,.9),0 0 8px rgba(0,0,0,.6);
+    white-space:nowrap;pointer-events:none}
+
+  .pump-mark{background:none;border:none}
+  .pump-mark i{display:block;width:12px;height:12px;background:var(--cyan);border:1.5px solid #0A111C;
+    transform:rotate(45deg)}
+  .pump-mark.st-ONLINE i{background:var(--ok)}
+  .pump-mark.st-STRAINED i{background:var(--amber)}
+  .pump-mark.st-UNMANNED i{background:#C7A6E8}
+  .pump-mark.st-NOPOWER i{background:#E08B7B}
+  .pump-mark.st-FLOODED i,.pump-mark.st-ABANDONED i{background:var(--breach)}
+
   .toggles{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-top:1px solid var(--line)}
   .tg{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
      background:transparent;border:1px solid var(--line);color:var(--muted);padding:4px 9px;cursor:pointer}
@@ -80,9 +81,9 @@
   #phase{position:absolute;top:10px;left:12px;right:12px;display:flex;gap:10px;align-items:baseline;
     pointer-events:none;flex-wrap:wrap;z-index:6}
   #clock{font-family:var(--disp);font-size:34px;font-weight:700;letter-spacing:.03em;color:var(--ink);
-    text-shadow:0 2px 12px rgba(0,0,0,.7)}
+    text-shadow:0 2px 12px rgba(0,0,0,.85)}
   #phaselbl{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--amber);
-    border:1px solid rgba(255,180,84,.4);padding:3px 8px;background:rgba(10,17,28,.75)}
+    border:1px solid rgba(255,180,84,.4);padding:3px 8px;background:rgba(10,17,28,.8)}
   #phaselbl.crit{color:var(--breach);border-color:rgba(255,90,69,.5);animation:blink 1.2s steps(2) infinite}
   @keyframes blink{50%{opacity:.55}}
   @media(prefers-reduced-motion:reduce){#phaselbl.crit{animation:none}}
@@ -96,7 +97,6 @@
   #dossier .x{position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);
     font-family:var(--mono);font-size:14px;cursor:pointer}
 
-  /* hover tip */
   #hovertip{position:absolute;z-index:7;min-width:180px;max-width:240px;padding:8px 10px;
     background:rgba(10,17,28,.96);border:1px solid var(--line);pointer-events:none;display:none;
     font-size:10.5px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
@@ -128,15 +128,13 @@
   .pump{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;
     padding:5px 12px;border-bottom:1px dashed rgba(29,49,73,.7);font-size:10.5px}
   .pump:last-child{border-bottom:none}
-  .pump .nm{color:var(--ink)}
-  .pump .cap{color:var(--muted)}
+  .pump .nm{color:var(--ink)} .pump .cap{color:var(--muted)}
   .st{font-size:9px;letter-spacing:.12em;padding:1px 6px;text-transform:uppercase}
   .st.ONLINE{color:var(--ok);border:1px solid rgba(105,201,143,.4)}
   .st.STRAINED{color:var(--amber);border:1px solid rgba(255,180,84,.45)}
   .st.NOPOWER{color:#E08B7B;border:1px solid rgba(224,139,123,.45)}
   .st.UNMANNED{color:#C7A6E8;border:1px solid rgba(199,166,232,.4)}
-  .st.FLOODED{color:var(--breach);border:1px solid rgba(255,90,69,.5)}
-  .st.ABANDONED{color:var(--breach);border:1px solid rgba(255,90,69,.5)}
+  .st.FLOODED,.st.ABANDONED{color:var(--breach);border:1px solid rgba(255,90,69,.5)}
 
   table{width:100%;border-collapse:collapse;font-size:10.5px}
   th,td{text-align:left;padding:4px 12px;border-bottom:1px dashed rgba(29,49,73,.7)}
@@ -160,7 +158,6 @@
   .btn{font-family:var(--disp);font-size:15px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
     background:var(--cyan);color:#07131f;border:none;padding:7px 18px;cursor:pointer}
   .btn:hover{background:#9AD5E8}
-  .btn:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
   .spd{background:none;border:1px solid var(--line);color:var(--muted);font-family:var(--mono);
     font-size:10px;padding:5px 9px;cursor:pointer}
   .spd.on{color:var(--ink);border-color:var(--cyan)}
@@ -172,30 +169,11 @@
   .legend{display:flex;gap:14px;flex-wrap:wrap;padding:8px 12px;border-top:1px solid var(--line);
     font-size:9.5px;color:var(--muted);letter-spacing:.06em}
   .sw{display:inline-block;width:10px;height:10px;vertical-align:-1px;margin-right:5px;border:1px solid rgba(255,255,255,.15)}
-
-  .zone{stroke:rgba(127,196,220,.18);stroke-width:0.8;cursor:pointer}
-  .zone:hover{stroke:var(--cyan);stroke-width:1.4;fill-opacity:.92}
-  .canal{stroke:#5FA8C4;fill:none}
-  .levee{stroke:#C9CFAA;stroke-dasharray:7 3;fill:none;stroke-width:1.6}
-  .lbl{font-family:var(--mono);fill:var(--muted);font-size:9px;letter-spacing:.1em;pointer-events:none}
-  .lbl.big{font-family:var(--disp);font-size:15px;letter-spacing:.3em;fill:#3E6E86}
-  .zlbl{font-size:8.5px;letter-spacing:.14em;fill:rgba(140,160,179,.55);paint-order:stroke;
-    stroke:rgba(10,17,28,.7);stroke-width:2.5}
-  .rdlbl{font-family:var(--mono);font-size:7px;letter-spacing:.14em;fill:rgba(160,200,220,.55);pointer-events:none;
-    paint-order:stroke;stroke:rgba(10,17,28,.65);stroke-width:2}
-  .bldg{opacity:.95}
-  .bldg:hover{stroke:#7FC4DC;stroke-width:0.7}
-  .pmark{cursor:pointer}
-  .bmark{cursor:pointer}
-  .bring{fill:none;stroke:var(--breach);stroke-width:1.5;opacity:0}
-  @keyframes ping{0%{r:6;opacity:.9}100%{r:22;opacity:0}}
-  .bring.live{animation:ping 1.6s ease-out infinite}
-  @media(prefers-reduced-motion:reduce){.bring.live{animation:none;opacity:.5;r:10}}
 </style>
 </head>
 <body>
 
-<div id="boot"><div class="spin"></div><span>Initializing forensic map…</span></div>
+<div id="boot"><div class="spin"></div><span>Loading basemap…</span></div>
 
 <header>
   <div class="tb">
@@ -204,115 +182,38 @@
       <h1>Flood Fight Lost <span class="thin">/ New Orleans · 28 Aug – 1 Sep 2005</span></h1>
       <div class="sub">Interactive reconstruction of the failure of the Lake Pontchartrain &amp; Vicinity Hurricane
       Protection Project during Hurricane Katrina — surge, rainfall, drainage capacity, breach sequence,
-      street-level basin filling, and the population left inside the bowl. Schematic base map: topology faithful, not to scale.
-      Hover any block for elevation &amp; depth. Times CDT. Elevations approx. NAVD88.</div>
+      basin filling, and the population left inside the bowl. Basemap: Esri imagery / CARTO streets.
+      Hover any neighborhood for elevation &amp; depth. Times CDT. Elevations approx. NAVD88.</div>
     </div>
     <div class="tb-meta">
       <div>Prepared after<br><b>IPET / ILIT / ASCE findings</b></div>
       <div>Datum <b>NAVD88 · CDT</b></div>
       <div>Basins <b>Orleans E. Bank · L9/St.B · N.O. East</b></div>
-      <div>Sheet <b>K-05 · REV 4</b></div>
+      <div>Sheet <b>K-05 · REV 5</b></div>
     </div>
   </div>
 </header>
 
 <main>
   <section class="card" id="mapcard">
-    <div class="card-h"><b>Sheet 1 — Protection System &amp; Street-Level Basin Filling</b><span id="floodpct-h">—</span></div>
+    <div class="card-h"><b>Sheet 1 — Protection System &amp; Basin Filling</b><span id="floodpct-h">—</span></div>
     <div id="mapwrap">
-      <svg id="map" viewBox="0 0 1200 820" role="img" aria-label="Schematic street-level map of New Orleans flood protection system during Katrina">
-        <defs>
-          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path d="M40 0H0V40" fill="none" stroke="#14243A" stroke-width=".6"/>
-          </pattern>
-          <pattern id="lakewave" width="90" height="14" patternUnits="userSpaceOnUse">
-            <path d="M0 7 Q22 1 45 7 T90 7" fill="none" stroke="#1E4B6E" stroke-width="1.1"/>
-          </pattern>
-          <pattern id="marsh" width="26" height="16" patternUnits="userSpaceOnUse">
-            <path d="M3 12 h8 M7 12 v-6 M5 8 l2 4 M9 8 l-2 4" stroke="#27424A" stroke-width="1" fill="none"/>
-          </pattern>
-          <linearGradient id="riverg" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="#1A4C70"/><stop offset="1" stop-color="#123954"/>
-          </linearGradient>
-        </defs>
-
-        <rect width="1200" height="820" fill="url(#grid)"/>
-
-        <path id="lake" d="M0 0 H1200 V208 Q1050 196 900 202 Q760 208 668 170 Q600 152 430 152 Q220 150 0 150 Z"
-              fill="#0D2C44"/>
-        <path d="M0 0 H1200 V208 Q1050 196 900 202 Q760 208 668 170 Q600 152 430 152 Q220 150 0 150 Z"
-              fill="url(#lakewave)" opacity=".5"/>
-        <text class="lbl big" x="90" y="86">LAKE&#160;&#160;PONTCHARTRAIN</text>
-        <text class="lbl" x="92" y="106">surge on south shore ≈ 10–12 ft · peak ~08:00–09:00 CDT Aug 29</text>
-
-        <path d="M1200 420 V820 H930 Q960 700 1030 600 Q1090 505 1200 420 Z" fill="#0D2C44"/>
-        <path d="M1200 420 V820 H930 Q960 700 1030 600 Q1090 505 1200 420 Z" fill="url(#lakewave)" opacity=".4"/>
-        <text class="lbl big" x="1020" y="740">LAKE BORGNE</text>
-        <path d="M900 430 Q970 520 940 640 Q930 700 918 760 L820 760 Q860 600 830 480 Z" fill="url(#marsh)" opacity=".8"/>
-
-        <g id="zones"></g>
-        <!-- streets/buildings painted via #fabric canvas for density -->
-        <g id="streets" opacity="0"></g>
-        <g id="buildings"></g>
-
-        <path id="river" d="M-10 700 C120 660 180 600 245 566 C320 528 380 592 455 604 C520 614 545 596 566 585 C600 568 636 596 668 632 C712 680 800 668 900 662 C1010 656 1120 648 1210 640 L1210 700 C1100 706 980 716 880 720 C780 724 700 736 650 690 C615 656 590 636 566 646 C520 664 470 676 420 662 C350 642 320 586 258 618 C190 652 130 716 -10 760 Z"
-              fill="url(#riverg)"/>
-        <text class="lbl big" x="330" y="700" opacity=".9">MISSISSIPPI&#160;RIVER</text>
-        <text class="lbl" x="332" y="718">river levees held — no failures on the Mississippi line</text>
-
-        <g id="canals">
-          <rect x="170" y="150" width="11" height="322" class="canal" fill="#16456A"/>
-          <rect x="325" y="152" width="9" height="278" class="canal" fill="#16456A"/>
-          <rect x="465" y="154" width="9" height="262" class="canal" fill="#16456A"/>
-          <rect x="655" y="162" width="15" height="470" class="canal" fill="#16456A"/>
-          <rect x="662" y="382" width="490" height="13" class="canal" fill="#16456A"/>
-          <path d="M760 395 L1120 560 L1200 610 L1200 590 L1128 545 L772 382 Z" fill="#16456A"/>
-          <rect x="653" y="600" width="19" height="26" fill="#0A111C" stroke="#5FA8C4" stroke-width="1.2"/>
-        </g>
-
-        <g id="levees">
-          <path class="levee" d="M0 150 Q220 150 430 152 Q600 152 668 170"/>
-          <path class="levee" d="M668 170 Q760 208 900 202 Q1050 196 1150 205"/>
-          <path class="levee" d="M166 150 V472 M185 150 V472"/>
-          <path class="levee" d="M321 152 V430 M338 152 V430"/>
-          <path class="levee" d="M461 154 V416 M478 154 V416"/>
-          <path class="levee" d="M651 162 V600 M674 162 V600"/>
-          <path class="levee" d="M662 380 H1150 M662 398 H1150"/>
-          <path class="levee" d="M772 380 L1200 585"/>
-        </g>
-
-        <g id="roadlabels"></g>
-        <g id="labels">
-          <text class="lbl" x="120" y="496" text-anchor="middle">17TH ST CANAL</text>
-          <text class="lbl" x="329" y="448" text-anchor="middle">ORLEANS AVE</text>
-          <text class="lbl" x="470" y="434" text-anchor="middle">LONDON AVE</text>
-          <text class="lbl" x="663" y="150" text-anchor="middle">IHNC / INDUSTRIAL CANAL</text>
-          <text class="lbl" x="1000" y="376">GIWW</text>
-          <text class="lbl" x="1010" y="500" transform="rotate(25 1010 500)">MR-GO — “THE FUNNEL”</text>
-          <text class="lbl" x="663" y="646" text-anchor="middle">LOCK</text>
-        </g>
-
-        <g id="zonelabels"></g>
-        <g id="breaches"></g>
-        <g id="pumpmarks"></g>
-      </svg>
-
-      <canvas id="fabric" aria-hidden="true"></canvas>
-      <canvas id="floodcanvas" aria-hidden="true"></canvas>
+      <div id="leaflet" role="img" aria-label="Map of New Orleans flood protection system during Katrina"></div>
       <div id="phase"><span id="clock">MON 00:00</span><span id="phaselbl">PRE-STORM</span></div>
       <div id="hovertip"></div>
       <div id="dossier"><button class="x" aria-label="close">×</button><div id="dosbody"></div></div>
     </div>
-    <div class="toggles" id="toggles"></div>
+    <div class="toggles" id="toggles">
+      <button class="tg on" data-basemap="satellite">Satellite</button>
+      <button class="tg" data-basemap="streets">Street map</button>
+    </div>
     <div class="legend">
-      <span><span class="sw" style="background:#39443C"></span>near sea level</span>
-      <span><span class="sw" style="background:#203764"></span>−6 ft &amp; below (bowl floor)</span>
-      <span><span class="sw" style="background:#4A5240"></span>natural levee / high ground</span>
-      <span><span class="sw" style="background:#1B5E8C"></span>floodwater (street-first fill)</span>
+      <span><span class="sw" style="background:#3d8aa8"></span>shallow flood</span>
+      <span><span class="sw" style="background:#0f4f7a"></span>deep flood (5–10+ ft)</span>
       <span><span class="sw" style="background:var(--breach);border-radius:50%"></span>breach</span>
       <span><span class="sw" style="background:var(--cyan)"></span>pump station</span>
       <span><span class="sw" style="border:1px dashed #C9CFAA;background:none"></span>levee / floodwall</span>
-      <span>hover map = elev + depth</span>
+      <span>hover neighborhood = elev + depth · scroll/zoom the map</span>
     </div>
   </section>
 
@@ -338,15 +239,14 @@
     <div class="stat">
       <div class="lbl">Est. people in flooded zones / cumulative rescued</div>
       <div class="val"><span id="strval">0</span> <small>stranded</small></div>
-      <div class="note" id="rescnote">Anchors: ~100,000 remained in the city; ~60,000 ultimately rescued from
-      homes and rooftops (USCG ~34,000 in N.O. alone). Zone split is a model, not a count.</div>
+      <div class="note" id="rescnote">Anchors: ~100,000 remained; ~60,000 ultimately rescued from homes and rooftops.</div>
     </div>
 
     <div class="stat" style="padding:0">
       <div class="lbl" style="padding:10px 12px 4px">Drainage pump stations</div>
       <div class="pumps" id="pumps"></div>
-      <div class="note" style="padding:6px 12px 10px">S&amp;WB pumps ran on 25 Hz power from the Carrollton plant +
-      Entergy feeds. Stations sit at the <i>inland</i> ends of the canals — inside the bowl they drain.</div>
+      <div class="note" style="padding:6px 12px 10px">S&amp;WB pumps ran on 25 Hz power from the Carrollton plant + Entergy feeds.
+        Stations sit at the <i>inland</i> ends of the canals — inside the bowl they drain.</div>
     </div>
 
     <div class="stat" style="padding:0">
@@ -370,34 +270,28 @@
       <button class="spd on" data-s="1">1×</button>
       <button class="spd" data-s="3">3×</button>
       <button class="spd" data-s="8">8×</button>
-      <span id="tlhint">drag the hydrograph · click a pin to jump · ← → keys step 15 min · hover map for elev/depth</span>
+      <span id="tlhint">drag hydrograph · click a pin · ← → step 15 min · map stays put while playing</span>
     </div>
   </section>
 </main>
 
 <footer>
   <h4>Reading this brief</h4>
-  <p><b>What the numbers mean.</b> Breach times, canal capacities, surge stages, wall-failure elevations, flood
-  extents (~20% by Aug 29 afternoon, ~80% by Aug 30–31, depths to 15–20 ft, equalization with the lake at ≈ +3 ft
-  on Sep 1), shelter counts and rescue totals are drawn from the IPET, ILIT and ASCE investigations, the
-  Congressional “A Failure of Initiative” report, NWS/NOAA records, and contemporaneous reporting. Where the record
-  gives a window (e.g., 17th St failure reported both ~06:30 by IPET and ~09:45 in early accounts), the earlier
-  engineering estimate is used and the window noted in the event pin.</p>
-  <p><b>What is modeled.</b> Continuous depth curves between documented checkpoints, the % flooded curve, and the
-  neighborhood split of the stranded population are linear interpolations anchored to documented totals.
-  Street and building fabric is procedural on a topology-faithful schematic — drawn to make breach-to-block
-  inundation legible, not a cadastral survey. Floodwater spreads from documented breach points with street-preferential
-  routing and lagged block fill; depths still track the basin keyframes above.</p>
+  <p><b>What the numbers mean.</b> Breach times, canal capacities, surge stages, flood extents, and rescue totals
+  are drawn from the IPET, ILIT and ASCE investigations and related public records. Continuous depth curves between
+  documented checkpoints are interpolations for legibility.</p>
+  <p><b>What the map is.</b> Basemap imagery/streets are real (Esri / CARTO · OSM). Neighborhood outlines are
+  the official Orleans Parish neighborhood polygons (civic open data via Click That Hood), with St. Bernard
+  (Arabi / Chalmette) added for the MR-GO story. Real city streets come from the basemap — floodwater is a
+  translucent depth overlay on those plats. Click any neighborhood, breach, or pump for the dossier.</p>
   <p><b>The core finding, per ASCE:</b> roughly two-thirds of the flooding would not have happened had the
-  floodwalls held. Sheet piles driven to ~17 ft instead of the 31–46 ft the soils required saved about $100M and
-  cost the system its integrity: the 17th St wall failed with water ~5 ft below its crown, London Avenue failed
-  ~4 ft below design stage, and the pumps — built for rainfall, powered from inside the bowl, discharging into the
-  very canals that were failing — never had a move to make.</p>
+  floodwalls held. The 17th St wall failed with water ~5 ft below its crown; London Avenue failed ~4 ft below
+  design stage; the pumps — built for rainfall, powered from inside the bowl — never had a move to make.</p>
 </footer>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="js/data.js"></script>
-<script src="js/citymap.js"></script>
-<script src="js/flood.js"></script>
+<script src="js/mapview.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

@@ -1,141 +1,16 @@
-/* Main UI — map assembly, dossier, hydrograph, hover readout */
+/* Main UI — Leaflet map + hydrograph + side panel */
 (() => {
   const S = q => document.querySelector(q);
   const SA = q => document.querySelectorAll(q);
-  const svgNS = 'http://www.w3.org/2000/svg';
 
   let t = -13, playing = false, speed = 1;
-  const layers = { FLOOD: 1, STREETS: 1, BUILDINGS: 1, BREACHES: 1, PUMPS: 1, LEVEES: 1, LABELS: 1 };
-  let city;
+  const layers = { FLOOD: 1, CANALS: 1, BREACHES: 1, PUMPS: 1, LEVEES: 1, LABELS: 1 };
 
-  const elevFill = e =>
-    e >= 5 ? '#4A5240' : e >= 0 ? '#39443C' : e >= -3 ? '#30414C' : e >= -5 ? '#283B58' : '#203764';
-
-  /* ---------- build static SVG geography ---------- */
-  function buildBaseSVG() {
-    const gZ = S('#zones');
-    city.zonePolys.forEach((z) => {
-      const p = document.createElementNS(svgNS, 'polygon');
-      p.setAttribute('points', z.pts.map(([x, y]) => `${x},${y}`).join(' '));
-      p.setAttribute('class', 'zone');
-      p.setAttribute('fill', elevFill(z.elev));
-      p.setAttribute('fill-opacity', '0.92');
-      p.setAttribute('data-id', z.id);
-      p.style.cursor = 'pointer';
-      p.addEventListener('click', e => {
-        e.stopPropagation();
-        showDos(zoneHtml(z));
-      });
-      gZ.appendChild(p);
-    });
-
-    // streets tracked in SVG for layer toggle metrics; visual comes from fabric canvas
-    const gSt = S('#streets');
-    city.streetsSVG.forEach(s => {
-      const ln = document.createElementNS(svgNS, 'line');
-      ln.setAttribute('x1', s.x0); ln.setAttribute('y1', s.y0);
-      ln.setAttribute('x2', s.x1); ln.setAttribute('y2', s.y1);
-      gSt.appendChild(ln);
-    });
-
-    // bake fabric into overlay canvas (above SVG zones via stacking)
-    const fab = S('#fabric');
-    if (city.fabric) {
-      fab.width = city.W;
-      fab.height = city.H;
-      fab.getContext('2d').drawImage(city.fabric, 0, 0);
-    }
-
-    // major road labels
-    const gRl = S('#roadlabels');
-    MAJOR_ROADS.forEach(rd => {
-      const mid = rd.pts[Math.floor(rd.pts.length / 2)];
-      const tx = document.createElementNS(svgNS, 'text');
-      tx.setAttribute('x', mid[0]);
-      tx.setAttribute('y', mid[1] - 3);
-      tx.setAttribute('class', 'rdlbl');
-      tx.setAttribute('text-anchor', 'middle');
-      tx.textContent = rd.name;
-      gRl.appendChild(tx);
-    });
-
-    // invisible hit-target buildings (visual is on fabric)
-    const gBd = S('#buildings');
-    city.buildingsData.forEach(b => {
-      const r = document.createElementNS(svgNS, 'rect');
-      r.setAttribute('x', b.x - b.w / 2);
-      r.setAttribute('y', b.y - b.h / 2);
-      r.setAttribute('width', b.w);
-      r.setAttribute('height', b.h);
-      r.setAttribute('class', 'bldg');
-      r.setAttribute('transform', `rotate(${(b.rot * 180) / Math.PI} ${b.x} ${b.y})`);
-      r.setAttribute('fill', 'transparent');
-      r.setAttribute('stroke', 'transparent');
-      r.style.cursor = 'pointer';
-      r.style.pointerEvents = 'auto';
-      const z = ZONES[b.zone];
-      r.addEventListener('click', e => {
-        e.stopPropagation();
-        if (z) showDos(zoneHtml(z) + `<div class="k">Footprint</div><p>Schematic building on ≈ ${b.elev >= 0 ? '+' : ''}${b.elev.toFixed(1)} ft ground. Depth @ cursor time follows the neighborhood curve.</p>`);
-      });
-      gBd.appendChild(r);
-    });
-
-    // zone labels
-    const gZL = S('#zonelabels');
-    ZONES.forEach(z => {
-      if (z.id === 'algiers') return;
-      const lb = document.createElementNS(svgNS, 'text');
-      lb.setAttribute('x', z.lx);
-      lb.setAttribute('y', z.ly);
-      lb.setAttribute('class', 'lbl zlbl');
-      lb.setAttribute('text-anchor', 'middle');
-      lb.textContent = z.nm.toUpperCase();
-      gZL.appendChild(lb);
-    });
-
-    // breaches
-    const gB = S('#breaches');
-    BREACH.forEach(b => {
-      const g = document.createElementNS(svgNS, 'g');
-      g.setAttribute('class', 'bmark');
-      const ring = document.createElementNS(svgNS, 'circle');
-      ring.setAttribute('cx', b.x); ring.setAttribute('cy', b.y);
-      ring.setAttribute('r', 8); ring.setAttribute('class', 'bring');
-      const dot = document.createElementNS(svgNS, 'circle');
-      dot.setAttribute('cx', b.x); dot.setAttribute('cy', b.y); dot.setAttribute('r', 5);
-      dot.setAttribute('fill', '#0A111C');
-      dot.setAttribute('stroke', '#5B6B7A');
-      dot.setAttribute('stroke-width', '1.5');
-      g.append(ring, dot);
-      b._dot = dot; b._ring = ring;
-      g.addEventListener('click', e => {
-        e.stopPropagation();
-        showDos(`<h3>${b.nm}</h3><div class="k">${b.sub}</div><p>${b.dos}</p>`);
-      });
-      gB.appendChild(g);
-    });
-
-    // pumps
-    const gP = S('#pumpmarks');
-    PUMPS.forEach(p => {
-      const g = document.createElementNS(svgNS, 'g');
-      g.setAttribute('class', 'pmark');
-      const r = document.createElementNS(svgNS, 'rect');
-      r.setAttribute('x', p.x - 5); r.setAttribute('y', p.y - 5);
-      r.setAttribute('width', 10); r.setAttribute('height', 10);
-      r.setAttribute('fill', '#7FC4DC');
-      r.setAttribute('stroke', '#0A111C');
-      r.setAttribute('stroke-width', '1.5');
-      r.setAttribute('transform', `rotate(45 ${p.x} ${p.y})`);
-      g.appendChild(r); p._r = r;
-      g.addEventListener('click', e => {
-        e.stopPropagation();
-        showDos(`<h3>${p.nm}</h3><div class="k">Capacity</div><p>${p.cap}</p><div class="k">Account</div><p>${p.dos}</p>`);
-      });
-      gP.appendChild(g);
-    });
+  function showDos(html) {
+    S('#dosbody').innerHTML = html;
+    S('#dossier').classList.add('on');
   }
+  S('#dossier .x').onclick = () => S('#dossier').classList.remove('on');
 
   function zoneHtml(z) {
     const d = lerp(z.kf, t);
@@ -145,7 +20,6 @@
       <div class="k">Account</div><p>${z.dos}</p>`;
   }
 
-  /* ---------- side panel lists ---------- */
   function buildPanels() {
     const pumpsEl = S('#pumps');
     PUMPS.forEach(p => {
@@ -159,7 +33,12 @@
     });
 
     const tb = S('#depths tbody');
-    ZONES.filter(z => z.id !== 'algiers').forEach(z => {
+    const tableNames = new Set([
+      'Lakeview', 'West End', 'Gentilly Terrace', 'St.  Anthony', 'Mid-City', 'Broadmoor',
+      'Treme - Lafitte', 'Central Business District', 'French Quarter', 'Bywater',
+      'Lower Ninth Ward', 'Holy Cross', 'Little Woods', 'Uptown', 'Arabi', 'Chalmette / St. Bernard'
+    ]);
+    ZONES.filter(z => tableNames.has(z.nm)).forEach(z => {
       const tr = document.createElement('tr');
       tr.style.cursor = 'pointer';
       tr.innerHTML = `<td>${z.nm}</td><td>${z.elev >= 0 ? '+' : ''}${z.elev} ft</td><td class="d">dry</td>`;
@@ -181,8 +60,7 @@
     const togEl = S('#toggles');
     [
       ['FLOOD', 'floodwater'],
-      ['STREETS', 'streets'],
-      ['BUILDINGS', 'buildings'],
+      ['CANALS', 'canals'],
       ['BREACHES', 'breaches'],
       ['PUMPS', 'pump stations'],
       ['LEVEES', 'levees & walls'],
@@ -194,99 +72,30 @@
       b.onclick = () => {
         layers[k] ^= 1;
         b.classList.toggle('on', !!layers[k]);
-        applyLayers();
+        MapView.setLayerVisible(k, !!layers[k]);
       };
       togEl.appendChild(b);
     });
-  }
 
-  function applyLayers() {
-    S('#floodcanvas').style.display = layers.FLOOD ? '' : 'none';
-    S('#fabric').style.opacity = (layers.STREETS || layers.BUILDINGS) ? '1' : '0';
-    // When only one of streets/buildings is on, re-bake would be ideal; for toggles hide whole fabric if both off
-    if (layers.STREETS && !layers.BUILDINGS) S('#fabric').style.opacity = '0.85';
-    if (!layers.STREETS && layers.BUILDINGS) S('#fabric').style.opacity = '0.9';
-    S('#streets').style.display = layers.STREETS ? '' : 'none';
-    S('#buildings').style.display = layers.BUILDINGS ? '' : 'none';
-    S('#breaches').style.display = layers.BREACHES ? '' : 'none';
-    S('#pumpmarks').style.display = layers.PUMPS ? '' : 'none';
-    S('#levees').style.display = layers.LEVEES ? '' : 'none';
-    S('#zonelabels').style.display = layers.LABELS ? '' : 'none';
-    S('#roadlabels').style.display = layers.LABELS ? '' : 'none';
-    S('#labels').style.display = layers.LABELS ? '' : 'none';
-  }
-
-  function showDos(html) {
-    S('#dosbody').innerHTML = html;
-    S('#dossier').classList.add('on');
-  }
-  S('#dossier .x').onclick = () => S('#dossier').classList.remove('on');
-
-  /* ---------- hover readout ---------- */
-  function setupHover() {
-    const tip = S('#hovertip');
-    const mapwrap = S('#mapwrap');
-    const svg = S('#map');
-
-    const toSvg = (clientX, clientY) => {
-      const pt = svg.createSVGPoint();
-      pt.x = clientX; pt.y = clientY;
-      const ctm = svg.getScreenCTM();
-      if (!ctm) return null;
-      return pt.matrixTransform(ctm.inverse());
-    };
-
-    mapwrap.addEventListener('pointermove', ev => {
-      const p = toSvg(ev.clientX, ev.clientY);
-      if (!p) return;
-
-      const c = clamp(Math.floor(p.x / city.CW), 0, city.COLS - 1);
-      const r = clamp(Math.floor(p.y / city.CH), 0, city.ROWS - 1);
-      const i = r * city.COLS + c;
-      const land = city.land[i];
-      if (!land) {
-        tip.classList.remove('on');
-        return;
-      }
-      const zi = city.zoneId[i];
-      const z = zi >= 0 ? ZONES[zi] : null;
-      const el = city.elev[i];
-      const depth = FloodEngine.depthAt(p.x, p.y);
-      const kind = city.street[i] ? 'street' : city.building[i] ? 'building' : 'block / yard';
-
-      tip.innerHTML = `
-        <div class="ht-name">${z ? z.nm : (land === 2 ? 'Marsh / St. Bernard fringe' : 'Unincorporated')}</div>
-        <div class="ht-row"><span>Ground elev.</span><b>${el >= 0 ? '+' : ''}${el.toFixed(1)} ft</b></div>
-        <div class="ht-row"><span>Water depth</span><b class="${depth > 6 ? 'hot' : depth > 0.2 ? 'wet' : ''}">${depth > 0.15 ? depth.toFixed(1) + ' ft' : 'dry'}</b></div>
-        <div class="ht-row"><span>Surface</span><b>${kind}</b></div>
-        ${depth > 0.15 ? `<div class="ht-row"><span>Water surface</span><b>${(el + depth).toFixed(1)} ft NAVD88</b></div>` : ''}
-      `;
-      tip.classList.add('on');
-
-      const wr = mapwrap.getBoundingClientRect();
-      let left = ev.clientX - wr.left + 14;
-      let top = ev.clientY - wr.top + 14;
-      if (left + 200 > wr.width) left = ev.clientX - wr.left - 210;
-      if (top + 110 > wr.height) top = ev.clientY - wr.top - 100;
-      tip.style.left = left + 'px';
-      tip.style.top = top + 'px';
-    });
-
-    mapwrap.addEventListener('pointerleave', () => tip.classList.remove('on'));
-
-    // click empty land → zone dossier
-    mapwrap.addEventListener('click', ev => {
-      if (ev.target.closest('.bmark, .pmark, .x, button')) return;
-      const p = toSvg(ev.clientX, ev.clientY);
-      if (!p) return;
-      const c = clamp(Math.floor(p.x / city.CW), 0, city.COLS - 1);
-      const r = clamp(Math.floor(p.y / city.CH), 0, city.ROWS - 1);
-      const zi = city.zoneId[r * city.COLS + c];
-      if (zi >= 0) showDos(zoneHtml(ZONES[zi]));
+    // basemap toggle
+    SA('[data-basemap]').forEach(b => {
+      b.onclick = () => {
+        SA('[data-basemap]').forEach(x => x.classList.toggle('on', x === b));
+        MapView.setBasemap(b.dataset.basemap);
+      };
     });
   }
 
-  /* ---------- phases ---------- */
+  /* scroll ONLY inside #log — never the page */
+  function scrollLogTo(el) {
+    const log = S('#log');
+    if (!log || !el) return;
+    const top = el.offsetTop;
+    const bottom = top + el.offsetHeight;
+    if (top < log.scrollTop) log.scrollTop = top - 8;
+    else if (bottom > log.scrollTop + log.clientHeight) log.scrollTop = bottom - log.clientHeight + 8;
+  }
+
   function phase() {
     if (t < -13) return ['PRE-STORM · CAT 5 IN THE GULF', 0];
     if (t < 0) return ['MANDATORY EVACUATION', 0];
@@ -391,7 +200,26 @@
     if (e.key === ' ' && e.target === document.body) { e.preventDefault(); S('#play').click(); }
   });
 
-  /* ---------- render ---------- */
+  /* hover tip */
+  function setupHover() {
+    const tip = S('#hovertip');
+    const wrap = S('#mapwrap');
+    MapView; // hover wired in init
+  }
+
+  function onHover(z, latlng, depth) {
+    const tip = S('#hovertip');
+    if (!z) { tip.classList.remove('on'); return; }
+    const d = depth != null ? depth : lerp(z.kf, t);
+    tip.innerHTML = `
+      <div class="ht-name">${z.nm}</div>
+      <div class="ht-row"><span>Ground elev.</span><b>${z.elev >= 0 ? '+' : ''}${z.elev} ft</b></div>
+      <div class="ht-row"><span>Water depth</span><b class="${d > 6 ? 'hot' : d > 0.2 ? 'wet' : ''}">${d > 0.15 ? d.toFixed(1) + ' ft' : 'dry'}</b></div>
+      ${d > 0.15 ? `<div class="ht-row"><span>Water surface</span><b>${(z.elev + d).toFixed(1)} ft NAVD88</b></div>` : ''}
+    `;
+    tip.classList.add('on');
+  }
+
   function render() {
     S('#clock').textContent = fmtT(t);
     const [pl, crit] = phase();
@@ -417,7 +245,7 @@
     const rescued = Math.round(lerp(RESC, t));
     const stranded = Math.max(0, Math.round(exposed - rescued * 0.9));
     S('#strval').textContent = '≈' + stranded.toLocaleString();
-    S('#rescnote').innerHTML = `Cumulative rescued ≈ <b>${rescued.toLocaleString()}</b>. Anchors: ~100,000 remained; ~60,000 ultimately rescued from homes (USCG ~34,000 in N.O.). Zone split is a model, not a count.`;
+    S('#rescnote').innerHTML = `Cumulative rescued ≈ <b>${rescued.toLocaleString()}</b>. Anchors: ~100,000 remained; ~60,000 ultimately rescued from homes (USCG ~34,000 in N.O.).`;
 
     const L = lerp(LOAD, t);
     S('#loadval').innerHTML = (L >= 10 ? L.toFixed(0) : L.toFixed(1)) + '<small>× capacity</small>';
@@ -435,19 +263,6 @@
       p.st.forEach(([tt, s]) => { if (t >= tt) st = s; });
       p._st.textContent = st.replace('NOPOWER', 'NO POWER');
       p._st.className = 'st ' + st;
-      p._r.setAttribute('fill',
-        st === 'ONLINE' ? '#69C98F' :
-        st === 'STRAINED' ? '#FFB454' :
-        st === 'UNMANNED' ? '#C7A6E8' :
-        st === 'NOPOWER' ? '#E08B7B' : '#FF5A45');
-    });
-
-    BREACH.forEach(b => {
-      const live = t >= b.t;
-      b._dot.setAttribute('fill', live ? '#FF5A45' : '#0A111C');
-      b._dot.setAttribute('stroke', live ? '#FF5A45' : '#5B6B7A');
-      b._ring.classList.toggle('live', live && t < b.t + 6);
-      b._ring.style.opacity = live && t < b.t + 6 ? '' : 0;
     });
 
     let nowEv = null;
@@ -457,13 +272,13 @@
       e._el.classList.toggle('now', past && t < e.t + 1.2);
       if (past) nowEv = e;
     });
-    if (nowEv && playing) nowEv._el.scrollIntoView({ block: 'nearest' });
+    // ONLY scroll the log pane — never the window (keeps map in view while playing)
+    if (nowEv && playing) scrollLogTo(nowEv._el);
 
-    FloodEngine.draw(t);
+    MapView.update(t);
     drawHydro();
   }
 
-  /* play loop */
   let last = performance.now();
   function loop(now) {
     const dt = (now - last) / 1000; last = now;
@@ -475,37 +290,46 @@
     requestAnimationFrame(loop);
   }
 
-  /* ---------- boot ---------- */
   function boot() {
-    S('#boot').textContent = 'Building elevation field & street network…';
-    // yield so the boot message paints
-    requestAnimationFrame(() => {
-      city = CityMap.init();
-      S('#boot').textContent = 'Seeding breach-driven flood distances…';
-      requestAnimationFrame(() => {
-        buildBaseSVG();
+    S('#boot').textContent = 'Loading neighborhood plat…';
+    fetch('data/nola-neighborhoods.geojson')
+      .then(r => {
+        if (!r.ok) throw new Error('geojson ' + r.status);
+        return r.json();
+      })
+      .then(fc => {
+        buildZonesFromGeoJSON(fc);
+        S('#boot').textContent = 'Loading basemap…';
         buildPanels();
-        FloodEngine.init(city, S('#floodcanvas'));
-        setupHover();
-        applyLayers();
+        MapView.init(S('#leaflet'), {
+          onZoneClick: z => showDos(zoneHtml(z)),
+          onBreachClick: b => showDos(`<h3>${b.nm}</h3><div class="k">${b.sub}</div><p>${b.dos}</p>`),
+          onPumpClick: p => showDos(`<h3>${p.nm}</h3><div class="k">Capacity</div><p>${p.cap}</p><div class="k">Account</div><p>${p.dos}</p>`),
+          onHover: (z, latlng) => {
+            const tip = S('#hovertip');
+            if (!z) { tip.classList.remove('on'); return; }
+            onHover(z, latlng, lerp(z.kf, t));
+            const wrap = S('#mapwrap');
+            const pt = MapView.getMap().latLngToContainerPoint(latlng);
+            let left = pt.x + 14, top = pt.y + 14;
+            if (left + 200 > wrap.clientWidth) left = pt.x - 210;
+            if (top + 100 > wrap.clientHeight) top = pt.y - 100;
+            tip.style.left = left + 'px';
+            tip.style.top = top + 'px';
+          }
+        });
         sizeCanvas();
-        // size flood canvas to map
-        const syncFlood = () => {
-          const wrap = S('#mapwrap');
-          const fc = S('#floodcanvas');
-          fc.style.width = '100%';
-          fc.style.height = '100%';
-        };
-        syncFlood();
         render();
         S('#boot').classList.add('done');
-        addEventListener('resize', () => { sizeCanvas(); drawHydro(); syncFlood(); FloodEngine.draw(t); });
+        addEventListener('resize', () => { sizeCanvas(); drawHydro(); MapView.invalidate(); });
         requestAnimationFrame(loop);
-        // gentle wave animation while idle
-        setInterval(() => { if (!playing) FloodEngine.draw(t); }, 80);
+      })
+      .catch(err => {
+        console.error(err);
+        S('#boot').textContent = 'Failed to load map data — check console';
       });
-    });
   }
 
-  boot();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
 })();
