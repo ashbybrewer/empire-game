@@ -152,16 +152,69 @@
   td.d{font-family:var(--disp);font-size:15px;font-weight:600}
   tr.wet td.d{color:var(--cyan)} tr.deep td.d{color:var(--breach)}
 
-  #log{max-height:220px;overflow-y:auto;scrollbar-width:thin}
-  .ev{padding:7px 12px;border-bottom:1px dashed rgba(29,49,73,.7);opacity:.28;transition:opacity .25s;cursor:pointer}
-  .ev.past{opacity:1}
-  .ev.now{background:rgba(255,90,69,.08)}
-  .ev .t{color:var(--amber);font-size:10px;letter-spacing:.08em}
-  .ev.sev .t{color:var(--breach)}
-  .ev .h{font-family:var(--disp);font-size:15px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;line-height:1.1}
-  .ev p{font-size:10.5px;color:var(--muted);margin-top:2px}
+  /* Visual event chronology — between map and microscope */
+  #evstrip{overflow:hidden}
+  #evrail{display:flex;gap:0;overflow-x:auto;scrollbar-width:thin;padding:0;scroll-behavior:smooth}
+  .ev-chip{flex:0 0 auto;width:168px;padding:8px 10px;border-right:1px solid var(--line);
+    opacity:.32;cursor:pointer;transition:opacity .2s,background .2s;min-height:72px}
+  .ev-chip.past{opacity:1}
+  .ev-chip.now{background:rgba(255,90,69,.1);box-shadow:inset 0 -2px 0 var(--breach)}
+  .ev-chip .t{color:var(--amber);font-size:9px;letter-spacing:.1em}
+  .ev-chip.sev .t{color:var(--breach)}
+  .ev-chip .h{font-family:var(--disp);font-size:14px;font-weight:600;text-transform:uppercase;
+    letter-spacing:.03em;line-height:1.1;margin-top:2px}
+  .ev-chip p{font-size:9.5px;color:var(--muted);margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;
+    -webkit-box-orient:vertical;overflow:hidden}
 
-  #tlcard{/* under map in col 1 */}
+  /* Forensic Microscope */
+  #microscope{min-height:380px;display:flex;flex-direction:column}
+  .fm-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:10px;letter-spacing:.08em}
+  .fm-lock{color:var(--muted);border:1px solid var(--line);padding:2px 7px}
+  .fm-lock.on{color:var(--amber);border-color:rgba(255,180,84,.5)}
+  .fm-lock.preview{color:var(--cyan);border-color:rgba(127,196,220,.4)}
+  .fm-clear{padding:3px 8px!important;font-size:11px!important}
+  .fm-tabs{display:flex;gap:0;border-bottom:1px solid var(--line)}
+  .fm-tab{flex:1;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    background:transparent;border:none;border-right:1px solid var(--line);color:var(--muted);
+    padding:8px 6px;cursor:pointer}
+  .fm-tab:last-child{border-right:none}
+  .fm-tab.on{color:var(--ink);background:rgba(127,196,220,.08);box-shadow:inset 0 -2px 0 var(--cyan)}
+  .fm-tab:focus-visible{outline:2px solid var(--amber);outline-offset:-2px}
+  .fm-body{display:grid;grid-template-columns:minmax(0,1fr) 200px;min-height:260px;flex:1}
+  .fm-viz{position:relative;min-height:260px;border-right:1px solid var(--line);background:var(--film2);overflow:hidden}
+  #fm-canvas{display:block;width:100%;height:100%}
+  .fm-readout{padding:8px 10px;font-size:10.5px;overflow-y:auto}
+  .fm-detail{border-top:1px solid var(--line);padding:8px 12px;font-size:10.5px;max-height:160px;overflow-y:auto}
+  .fm-k{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-top:6px}
+  .fm-k:first-child{margin-top:0}
+  .fm-v{color:var(--ink);margin-top:1px}
+  .fm-v.accent{color:var(--amber)}
+  .fm-v.wet{color:var(--cyan)}
+  .fm-v.hot{color:var(--breach)}
+  .fm-muted{color:var(--muted)}
+  .fm-seq{margin:4px 0 0 16px;color:var(--ink)}
+  .fm-seq li{margin:2px 0}
+  .fm-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .fm-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .fm-chip{display:inline-block;border:1px solid var(--line);padding:2px 6px;margin:2px 2px 0 0;font-size:9.5px}
+  .fm-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+  .fm-tag{font-size:9px;letter-spacing:.1em;padding:2px 6px;border:1px solid var(--line);color:var(--muted)}
+  .fm-tag.OBSERVED{color:var(--ok);border-color:rgba(105,201,143,.45)}
+  .fm-tag.INTERPOLATED{color:var(--amber);border-color:rgba(255,180,84,.45)}
+  .fm-tag.MODELED{color:var(--cyan);border-color:rgba(127,196,220,.45)}
+  .fm-tag.APPROXIMATE{color:#8CA0B3;border-color:var(--line)}
+  .fm-evtable{width:100%;border-collapse:collapse;font-size:10px;margin-top:6px}
+  .fm-evtable th,.fm-evtable td{text-align:left;padding:3px 6px;border-bottom:1px dashed rgba(29,49,73,.7);vertical-align:top}
+  .fm-evtable th{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:500}
+  .fm-warn{margin-top:8px;color:var(--amber);font-size:10px;border:1px solid rgba(255,180,84,.35);padding:6px 8px}
+  .fm-check{display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer;color:var(--muted);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+  @media(max-width:900px){
+    .fm-body{grid-template-columns:1fr}
+    .fm-viz{border-right:none;border-bottom:1px solid var(--line);min-height:220px}
+    .fm-grid2{grid-template-columns:1fr}
+  }
+
+  #tlcard{/* under microscope in col 1 */}
   #tl{position:relative;padding:6px 12px 8px}
   #hydro{display:block;width:100%;height:120px;cursor:crosshair;touch-action:none}
   #hydrotip{position:absolute;z-index:5;display:none;pointer-events:none;min-width:160px;max-width:260px;
@@ -239,6 +292,13 @@
     </div>
   </section>
 
+  <section class="card" id="evstrip">
+    <div class="card-h"><b>Event Chronology</b><span>click any beat · follows play without forcing scroll</span></div>
+    <div id="evrail"></div>
+  </section>
+
+  <section class="card" id="microscope"></section>
+
   <section class="card" id="tlcard">
     <div class="card-h"><b>Sheet 3 — Master Hydrograph &amp; Breach Sequence</b>
       <span>lake (cyan) · IHNC (amber) · hover pins for events</span></div>
@@ -298,10 +358,6 @@
       <table id="depths"><thead><tr><th>Basin</th><th>Ground elev.</th><th>Depth</th></tr></thead><tbody></tbody></table>
     </div>
 
-    <div class="stat" style="padding:0">
-      <div class="lbl" style="padding:10px 12px 4px">Event log</div>
-      <div id="log"></div>
-    </div>
   </section>
 </main>
 
@@ -313,8 +369,10 @@
   <p><b>What the map is.</b> Basemap imagery/streets are real (Esri / CARTO · OSM). Neighborhood outlines are
   the official Orleans Parish neighborhood polygons (civic open data via Click That Hood), with St. Bernard
   (Arabi / Chalmette) added for the MR-GO story. Outfall canals use OSM water polygons plus channel centerlines.
+  Floodwalls/levees are approximate alignments along those canals and the lakefront crest — not a survey plat.
   Floodwater spreads from breach points into low ground (elevation-aware front), then fills each basin.
-  Click any neighborhood, breach, or pump for the dossier.</p>
+  The Forensic Microscope under the map reconstructs local block fabric, street sections, causal routes, and
+  evidence class for the hovered/locked location. Click any neighborhood, breach, or pump for the dossier.</p>
   <p><b>The core finding, per ASCE:</b> roughly two-thirds of the flooding would not have happened had the
   floodwalls held. The 17th St wall failed with water ~5 ft below its crown; London Avenue failed ~4 ft below
   design stage; the pumps — built for rainfall, powered from inside the bowl — never had a move to make.</p>
@@ -323,6 +381,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="js/data.js"></script>
 <script src="js/mapview.js"></script>
+<script src="js/microscope.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

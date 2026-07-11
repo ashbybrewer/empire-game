@@ -336,6 +336,60 @@ const ENTRY_TIME = { mrgo: 4.5, ihnc: 5.0, noeL: 6.2, b17: 6.5, lonS: 6.6, giww:
 
 const CANALS = []; // replaced by data/nola-canals.geojson (real OSM + channel centerlines)
 
+/* Floodwalls / levees — aligned to canal centerlines + lakefront crest (approx. NAVD88 alignments).
+   Not a survey plat: wall lines follow the outfall canals and Pontchartrain shoreline, not mid-block. */
 const LEVEES = [
-  { name: 'Lakefront levee', latlngs: [[30.0275,-90.185],[30.0278,-90.140],[30.0275,-90.122],[30.0265,-90.101],[30.0255,-90.076],[30.023,-90.040],[30.020,-89.960],[30.017,-89.920]] }
+  { name: 'Lakefront levee (Pontchartrain)', latlngs: [
+    [30.0198,-90.1550],[30.0215,-90.1450],[30.0238,-90.1350],[30.0258,-90.1255],
+    [30.0272,-90.1180],[30.0276,-90.1080],[30.0275,-90.0980],[30.0272,-90.0880],
+    [30.0268,-90.0780],[30.0262,-90.0680],[30.0252,-90.0550],[30.0240,-90.0400],
+    [30.0225,-90.0300],[30.0270,-90.0275]
+  ]},
+  { name: 'N.O. East lakefront levee', latlngs: [
+    [30.0270,-90.0270],[30.0305,-90.0100],[30.0335,-89.9900],[30.0360,-89.9700],
+    [30.0385,-89.9500],[30.0410,-89.9300],[30.0435,-89.9100]
+  ]},
+  { name: '17th St Canal floodwalls', latlngs: [
+    [30.0279,-90.1224],[30.0245,-90.1223],[30.0210,-90.1222],[30.0175,-90.1221],
+    [30.0140,-90.1220],[30.0105,-90.1219],[30.0070,-90.1218],[30.0035,-90.1217],
+    [30.0000,-90.1216],[29.9965,-90.12155],[29.9930,-90.1215],[29.9895,-90.12145],
+    [29.9860,-90.12135],[29.9825,-90.1213],[29.9795,-90.12125],[29.9770,-90.12125]
+  ]},
+  { name: 'Orleans Ave Canal floodwalls', latlngs: [
+    [30.0276,-90.0979],[30.0240,-90.0982],[30.0200,-90.09855],[30.0150,-90.0990],
+    [30.0100,-90.09945],[30.0050,-90.0999],[30.0000,-90.1004],[29.9950,-90.1009],
+    [29.9900,-90.1012],[29.9860,-90.1014],[29.9825,-90.1015]
+  ]},
+  { name: 'London Ave Canal floodwalls', latlngs: [
+    [30.0275,-90.0712],[30.0240,-90.0708],[30.0200,-90.0705],[30.0150,-90.0701],
+    [30.0100,-90.0697],[30.0050,-90.0693],[30.0000,-90.0689],[29.9950,-90.0685],
+    [29.9900,-90.0682],[29.9860,-90.0680],[29.9835,-90.0679]
+  ]},
+  { name: 'IHNC floodwalls', latlngs: [
+    [30.0270,-90.0273],[30.0180,-90.0271],[30.0080,-90.0269],[29.9980,-90.0267],
+    [29.9880,-90.0265],[29.9780,-90.0268],[29.9700,-90.0272],[29.9620,-90.0276],
+    [29.9560,-90.0278],[29.9480,-90.0274]
+  ]},
+  { name: 'GIWW levee (N.O. East south)', latlngs: [
+    [29.9808,-90.0265],[29.9815,-90.0100],[29.9830,-89.9900],[29.9860,-89.9700],
+    [29.9910,-89.9500],[29.9970,-89.9350],[30.0040,-89.9200],[30.0140,-89.9000]
+  ]},
+  { name: 'MR-GO levee reaches', latlngs: [
+    [29.9867,-90.0203],[29.9920,-90.0080],[29.9965,-89.9900],[29.9995,-89.9700],
+    [30.0025,-89.9500],[30.0060,-89.9300],[30.0110,-89.9100]
+  ]}
 ];
+
+/* Source labels for forensic microscope causal chains */
+const SOURCE_LABEL = {
+  b17: '17th St Canal East I-wall Breach',
+  lonS: 'London Avenue Canal South Breach',
+  lonN: 'London Avenue Canal North Breach',
+  ihnc: 'IHNC East Floodwall Breach',
+  mrgo: 'MR-GO Levee Failures',
+  giww: 'GIWW Levee Overtopping / Breach',
+  noeL: 'N.O. East Lakefront Overtopping',
+  gravity: 'Gravity Fill from Adjacent Basins',
+  jeff: 'Rainfall Ponding (Unmanned Pumps)',
+  none: 'No Breach Source (Dry Ridge)'
+};

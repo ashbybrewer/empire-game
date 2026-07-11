@@ -1,12 +1,17 @@
 /* Leaflet map: satellite/streets, real canal GeoJSON, elevation-aware flood flow */
 const MapView = (() => {
   let map, zoneLayers = {}, breachMarkers = {}, pumpMarkers = {};
-  let floodLayer, canalLayer, leveeLayer, labelLayer, flowLayer;
+  let floodLayer, canalLayer, leveeLayer, labelLayer, flowLayer, routeLayer, confLayer, transectLayer;
   let satLayer, streetLayer, hybridRoads;
   let onZoneClick = null;
   let hoverCb = null;
+  let mapClickCb = null;
   let _t = -13;
   let flowCircles = [];
+  let confOn = false;
+  let transectMode = false;
+  let transectPts = [];
+  let transectCb = null;
 
   function depthStyle(depth, elev, progress) {
     if (depth <= 0.12) {
@@ -18,11 +23,13 @@ const MapView = (() => {
         opacity: 0.28
       };
     }
-    // Lower ground reads darker/wetter sooner; progress gates how far water has spread
     const p = progress == null ? 1 : progress;
-    const a = clamp((0.18 + depth / 16) * (0.35 + 0.65 * p), 0.12, 0.72);
+    // Soften early shallow film so water reads as advancing street corridors first
+    const frontGate = p < 0.35 ? 0.45 + p : 0.35 + 0.65 * p;
+    const a = clamp((0.16 + depth / 15) * frontGate, 0.10, 0.78);
     let fill;
-    if (depth < 2) fill = '#4aa0bc';
+    if (depth < 1.2) fill = '#5aadc4';
+    else if (depth < 2.5) fill = '#3d92b4';
     else if (depth < 5) fill = '#2a7aa8';
     else if (depth < 10) fill = '#15608a';
     else fill = '#0c4068';
@@ -30,27 +37,27 @@ const MapView = (() => {
       fillColor: fill,
       fillOpacity: a,
       color: depth > 6 ? '#FF5A45' : '#7FC4DC',
-      weight: 1,
-      opacity: 0.5
+      weight: p < 0.55 ? 1.4 : 1,
+      opacity: p < 0.55 ? 0.65 : 0.5,
+      dashArray: p < 0.4 && depth < 4 ? '3 4' : null
     };
   }
 
   /* Elevation + distance-from-breach flood routing */
   function floodState(z, t) {
     const dTarget = lerp(z.kf, t);
-    if (dTarget <= 0.05 || z.entry === 'none') return { depth: 0, progress: 0 };
+    if (dTarget <= 0.05 || z.entry === 'none') return { depth: 0, progress: 0, source: null, bearing: null };
 
     const tEntry = ENTRY_TIME[z.entry] != null ? ENTRY_TIME[z.entry] : 6.5;
-    if (t < tEntry - 0.05) return { depth: 0, progress: 0 };
+    if (t < tEntry - 0.05) return { depth: 0, progress: 0, source: null, bearing: null };
 
-    // Rain-only basins (Jefferson): no breach routing — ponding from unloaded pumps
     if (z.entry === 'jeff') {
       const progress = clamp((t - tEntry) / 5, 0, 1);
-      return { depth: dTarget * progress, progress };
+      return { depth: dTarget * progress, progress, source: 'jeff', bearing: 0 };
     }
 
-    // Nearest live breach that can feed this basin
     let distKm = 12;
+    let srcBreach = null;
     BREACH.forEach(b => {
       if (t < b.t) return;
       const feeds =
@@ -59,20 +66,20 @@ const MapView = (() => {
       if (!feeds) return;
       const dlat = (z.label[1] - b.lat) * 111;
       const dlon = (z.label[0] - b.lon) * 111 * Math.cos(z.label[1] * Math.PI / 180);
-      distKm = Math.min(distKm, Math.hypot(dlat, dlon));
+      const d = Math.hypot(dlat, dlon);
+      if (d < distKm) { distKm = d; srcBreach = b; }
     });
-    if (z.entry === 'gravity') {
-      distKm = Math.max(distKm, 2.5);
-    }
+    if (z.entry === 'gravity') distKm = Math.max(distKm, 2.5);
 
-    // Low ground floods first / faster (elev -8..+8 → factor)
     const elevFactor = clamp(1.15 - (z.elev + 7) / 14, 0.45, 1.35);
-    const spreadHrs = (0.35 + distKm * 0.85) / elevFactor * (z.entry === 'gravity' ? 1.6 : 1);
-    const progress = clamp((t - tEntry) / Math.max(spreadHrs, 0.25), 0, 1);
-
-    // Depth tracks basin curve but is gated by how far the front has reached
-    const depth = dTarget * Math.pow(progress, z.elev < -3 ? 0.55 : 0.75);
-    return { depth, progress };
+    const spreadHrs = (0.45 + distKm * 0.95) / elevFactor * (z.entry === 'gravity' ? 1.75 : 1);
+    const progress = clamp((t - tEntry) / Math.max(spreadHrs, 0.3), 0, 1);
+    const depth = dTarget * Math.pow(progress, z.elev < -3 ? 0.5 : 0.72);
+    let bearing = null;
+    if (srcBreach) {
+      bearing = Math.atan2(z.label[1] - srcBreach.lat, z.label[0] - srcBreach.lon) * 180 / Math.PI;
+    }
+    return { depth, progress, source: srcBreach ? srcBreach.id : z.entry, bearing, breach: srcBreach };
   }
 
   function styleForZone(z) {
@@ -80,9 +87,20 @@ const MapView = (() => {
     return depthStyle(depth, z.elev, progress);
   }
 
+  function confidenceForZone(z) {
+    if (z.entry === 'none') return { level: 'APPROXIMATE', color: '#5B6B7A', score: 0.35 };
+    if (z.entry === 'b17' || z.entry === 'lonS' || z.entry === 'lonN' || z.entry === 'ihnc')
+      return { level: 'OBSERVED', color: '#69C98F', score: 0.85 };
+    if (z.entry === 'mrgo' || z.entry === 'giww' || z.entry === 'noeL')
+      return { level: 'INTERPOLATED', color: '#FFB454', score: 0.7 };
+    if (z.entry === 'gravity') return { level: 'MODELED', color: '#7FC4DC', score: 0.55 };
+    return { level: 'APPROXIMATE', color: '#8CA0B3', score: 0.4 };
+  }
+
   function init(container, opts = {}) {
     onZoneClick = opts.onZoneClick || null;
     hoverCb = opts.onHover || null;
+    mapClickCb = opts.onMapClick || null;
 
     map = L.map(container, {
       center: [29.975, -90.05],
@@ -114,8 +132,10 @@ const MapView = (() => {
     flowLayer = L.layerGroup().addTo(map);
     floodLayer = L.layerGroup().addTo(map);
     labelLayer = L.layerGroup().addTo(map);
+    routeLayer = L.layerGroup().addTo(map);
+    confLayer = L.layerGroup();
+    transectLayer = L.layerGroup().addTo(map);
 
-    // Real canal geometries (OSM waterbodies + digitized centerlines ON the channels)
     if (opts.canals) {
       L.geoJSON(opts.canals, {
         style: f => {
@@ -131,11 +151,10 @@ const MapView = (() => {
       }).addTo(canalLayer);
     }
 
-    // Lakefront / wall alignments as light dashed guides (approximate)
     (opts.levees || LEVEES || []).forEach(l => {
       L.polyline(l.latlngs, {
-        color: '#C9CFAA', weight: 2, opacity: 0.7, dashArray: '6 4'
-      }).bindTooltip(l.name, { sticky: true }).addTo(leveeLayer);
+        color: '#C9CFAA', weight: 2.2, opacity: 0.85, dashArray: '7 5'
+      }).bindTooltip(l.name + ' · approx. alignment', { sticky: true }).addTo(leveeLayer);
     });
 
     ZONES.forEach(z => {
@@ -144,7 +163,11 @@ const MapView = (() => {
         layer = L.geoJSON(z.feature, {
           style: () => styleForZone(z),
           onEachFeature: (feat, lyr) => {
-            lyr.on('click', () => onZoneClick && onZoneClick(z));
+            lyr.on('click', e => {
+              if (transectMode) return;
+              L.DomEvent.stopPropagation(e);
+              onZoneClick && onZoneClick(z, e.latlng);
+            });
             lyr.on('mouseover', e => {
               lyr.setStyle({ weight: 2.2, opacity: 1 });
               const st = floodState(z, _t);
@@ -163,7 +186,11 @@ const MapView = (() => {
       } else {
         const latlngs = z.ring.map(([lon, lat]) => [lat, lon]);
         layer = L.polygon(latlngs, styleForZone(z));
-        layer.on('click', () => onZoneClick && onZoneClick(z));
+        layer.on('click', e => {
+          if (transectMode) return;
+          L.DomEvent.stopPropagation(e);
+          onZoneClick && onZoneClick(z, e.latlng);
+        });
         layer.on('mouseover', e => {
           layer.setStyle({ weight: 2.2, opacity: 1 });
           hoverCb && hoverCb(z, e.latlng, floodState(z, _t).depth);
@@ -176,6 +203,16 @@ const MapView = (() => {
       }
       layer.addTo(floodLayer);
       zoneLayers[z.id] = layer;
+
+      const confStyle = () => {
+        const conf = confidenceForZone(z);
+        return { fillColor: conf.color, fillOpacity: 0.28, color: conf.color, weight: 0.8, opacity: 0.5 };
+      };
+      if (z.feature) {
+        L.geoJSON(z.feature, { style: confStyle, interactive: false }).addTo(confLayer);
+      } else if (z.ring) {
+        L.polygon(z.ring.map(([lon, lat]) => [lat, lon]), Object.assign(confStyle(), { interactive: false })).addTo(confLayer);
+      }
 
       const major = ['Lakeview', 'West End', 'Gentilly Terrace', 'Mid-City', 'Broadmoor', 'French Quarter',
         'Lower Ninth Ward', 'Holy Cross', 'Little Woods', 'Central Business District', 'Uptown',
@@ -202,17 +239,15 @@ const MapView = (() => {
       m.addTo(map);
       breachMarkers[b.id] = m;
 
-      // Flood-flow plume ring (grows after breach — water spreading into low ground)
       const plume = L.circle([b.lat, b.lon], {
-        radius: 80,
-        color: '#FF5A45',
-        weight: 1,
-        opacity: 0,
-        fillColor: '#1B5E8C',
-        fillOpacity: 0,
-        interactive: false
+        radius: 80, color: '#FF5A45', weight: 1, opacity: 0,
+        fillColor: '#1B5E8C', fillOpacity: 0, interactive: false
       }).addTo(flowLayer);
-      flowCircles.push({ b, plume });
+      const plume2 = L.circle([b.lat, b.lon], {
+        radius: 40, color: '#7FC4DC', weight: 1, opacity: 0,
+        fillColor: '#2a7aa8', fillOpacity: 0, interactive: false
+      }).addTo(flowLayer);
+      flowCircles.push({ b, plume, plume2 });
     });
 
     PUMPS.forEach(p => {
@@ -232,7 +267,85 @@ const MapView = (() => {
 
     map.fitBounds([[29.91, -90.16], [30.03, -89.90]], { padding: [16, 16] });
     map.on('mouseout', () => hoverCb && hoverCb(null));
+    map.on('click', e => {
+      if (transectMode) {
+        handleTransectClick(e.latlng);
+        return;
+      }
+      mapClickCb && mapClickCb(e.latlng);
+    });
     return map;
+  }
+
+  function handleTransectClick(latlng) {
+    transectPts.push(latlng);
+    redrawTransect();
+    if (transectPts.length >= 2) {
+      const pts = transectPts.slice(0, 2);
+      transectMode = false;
+      map.getContainer().style.cursor = '';
+      transectCb && transectCb(pts);
+      transectPts = [];
+    }
+  }
+
+  function redrawTransect() {
+    transectLayer.clearLayers();
+    transectPts.forEach(p => {
+      L.circleMarker(p, { radius: 5, color: '#FFB454', fillColor: '#FFB454', fillOpacity: 1, weight: 1 }).addTo(transectLayer);
+    });
+    if (transectPts.length === 2) {
+      L.polyline(transectPts, { color: '#FFB454', weight: 2, dashArray: '4 3' }).addTo(transectLayer);
+    }
+  }
+
+  function startTransect(cb) {
+    if (!map || !transectLayer) return;
+    transectMode = true;
+    transectPts = [];
+    transectCb = cb;
+    transectLayer.clearLayers();
+    map.getContainer().style.cursor = 'crosshair';
+  }
+
+  function cancelTransect() {
+    if (!transectMode && !transectPts.length) return false;
+    transectMode = false;
+    transectPts = [];
+    if (transectLayer) transectLayer.clearLayers();
+    if (map) map.getContainer().style.cursor = '';
+    return true;
+  }
+
+  function setTransectLine(pts) {
+    if (!transectLayer) return;
+    transectLayer.clearLayers();
+    if (!pts || pts.length < 2) return;
+    L.polyline(pts, { color: '#FFB454', weight: 2, dashArray: '4 3' }).addTo(transectLayer);
+    pts.forEach(p => L.circleMarker(p, { radius: 4, color: '#FFB454', fillColor: '#FFB454', fillOpacity: 1 }).addTo(transectLayer));
+  }
+
+  function setRoute(latlngs, opts = {}) {
+    if (!routeLayer) return;
+    routeLayer.clearLayers();
+    if (!latlngs || latlngs.length < 2) return;
+    L.polyline(latlngs, {
+      color: opts.color || '#FFB454',
+      weight: 2.5,
+      opacity: 0.9,
+      dashArray: '6 5'
+    }).bindTooltip(opts.label || 'Modeled flow route', { sticky: true }).addTo(routeLayer);
+    L.circleMarker(latlngs[0], { radius: 5, color: '#FF5A45', fillColor: '#FF5A45', fillOpacity: 1, weight: 1 }).addTo(routeLayer);
+    L.circleMarker(latlngs[latlngs.length - 1], { radius: 5, color: '#7FC4DC', fillColor: '#7FC4DC', fillOpacity: 1, weight: 1 }).addTo(routeLayer);
+  }
+
+  function clearRoute() { if (routeLayer) routeLayer.clearLayers(); }
+
+  function setConfidenceOverlay(on) {
+    confOn = !!on;
+    if (!map || !confLayer) return;
+    if (confOn) confLayer.addTo(map);
+    else map.removeLayer(confLayer);
   }
 
   function setBasemap(mode) {
@@ -246,6 +359,9 @@ const MapView = (() => {
     flowLayer.addTo(map);
     floodLayer.addTo(map);
     labelLayer.addTo(map);
+    routeLayer.addTo(map);
+    transectLayer.addTo(map);
+    if (confOn) confLayer.addTo(map);
     Object.values(breachMarkers).forEach(m => m.addTo(map));
     Object.values(pumpMarkers).forEach(m => m.addTo(map));
   }
@@ -284,23 +400,32 @@ const MapView = (() => {
       });
     });
 
-    // Expanding flood plumes from breaches — faster into low ground (visual of flow)
-    flowCircles.forEach(({ b, plume }) => {
+    flowCircles.forEach(({ b, plume, plume2 }) => {
       if (t < b.t) {
         plume.setStyle({ opacity: 0, fillOpacity: 0 });
+        if (plume2) plume2.setStyle({ opacity: 0, fillOpacity: 0 });
         return;
       }
       const age = t - b.t;
-      // radius grows for ~10–18 hours then holds (meters)
-      const r = 120 + Math.min(age, 18) * 220;
-      const fade = age < 24 ? 0.22 : clamp(0.22 * (1 - (age - 24) / 40), 0.05, 0.22);
+      const r = 100 + Math.min(age, 20) * 240;
+      const fade = age < 24 ? 0.2 : clamp(0.2 * (1 - (age - 24) / 40), 0.04, 0.2);
       plume.setRadius(r);
       plume.setStyle({
-        opacity: clamp(0.55 - age * 0.015, 0.15, 0.55),
+        opacity: clamp(0.55 - age * 0.012, 0.12, 0.55),
         fillOpacity: fade,
         fillColor: '#1B6E9C',
         color: '#FF5A45'
       });
+      if (plume2) {
+        const r2 = 60 + Math.min(age, 8) * 90;
+        plume2.setRadius(r2);
+        plume2.setStyle({
+          opacity: clamp(0.45 - age * 0.02, 0.08, 0.45),
+          fillOpacity: clamp(0.28 - age * 0.015, 0.05, 0.28),
+          fillColor: '#3d92b4',
+          color: '#7FC4DC'
+        });
+      }
     });
 
     PUMPS.forEach(p => {
@@ -317,5 +442,10 @@ const MapView = (() => {
 
   function invalidate() { if (map) map.invalidateSize(); }
 
-  return { init, update, setBasemap, setLayerVisible, invalidate, getMap: () => map, depthAtZone, floodState };
+  return {
+    init, update, setBasemap, setLayerVisible, invalidate, getMap: () => map,
+    depthAtZone, floodState, confidenceForZone,
+    startTransect, cancelTransect, setTransectLine, isTransectMode: () => transectMode,
+    setRoute, clearRoute, setConfidenceOverlay
+  };
 })();

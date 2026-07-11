@@ -1,4 +1,4 @@
-/* Main UI — Leaflet map + hydrograph + side panel */
+/* Main UI — Leaflet map + hydrograph + side panel + forensic microscope */
 (() => {
   const S = q => document.querySelector(q);
   const SA = q => document.querySelectorAll(q);
@@ -47,18 +47,22 @@
       const tr = document.createElement('tr');
       tr.style.cursor = 'pointer';
       tr.innerHTML = `<td>${z.nm}</td><td>${z.elev >= 0 ? '+' : ''}${z.elev} ft</td><td class="d">dry</td>`;
-      tr.addEventListener('click', () => showDos(zoneHtml(z)));
+      tr.addEventListener('click', () => {
+        showDos(zoneHtml(z));
+        Microscope.lockAt(z, L.latLng(z.label[1], z.label[0]));
+      });
       tb.appendChild(tr);
       z._tr = tr; z._td = tr.querySelector('.d');
     });
 
-    const logEl = S('#log');
+    // Visual event chronology strip (between map and microscope) — no forced autoscroll
+    const rail = S('#evrail');
     EVENTS.forEach(e => {
       const d = document.createElement('div');
-      d.className = 'ev' + (e.sev ? ' sev' : '');
+      d.className = 'ev-chip' + (e.sev ? ' sev' : '');
       d.innerHTML = `<div class="t">${fmtT(e.t)}</div><div class="h">${e.h}</div><p>${e.p}</p>`;
-      d.addEventListener('click', () => { t = e.t; render(); });
-      logEl.appendChild(d);
+      d.addEventListener('click', () => { t = e.t; playing = false; S('#play').textContent = '▶ Run'; render(); });
+      rail.appendChild(d);
       e._el = d;
     });
 
@@ -82,23 +86,12 @@
       togEl.appendChild(b);
     });
 
-    // basemap toggle
     SA('[data-basemap]').forEach(b => {
       b.onclick = () => {
         SA('[data-basemap]').forEach(x => x.classList.toggle('on', x === b));
         MapView.setBasemap(b.dataset.basemap);
       };
     });
-  }
-
-  /* scroll ONLY inside #log — never the page */
-  function scrollLogTo(el) {
-    const log = S('#log');
-    if (!log || !el) return;
-    const top = el.offsetTop;
-    const bottom = top + el.offsetHeight;
-    if (top < log.scrollTop) log.scrollTop = top - 8;
-    else if (bottom > log.scrollTop + log.clientHeight) log.scrollTop = bottom - log.clientHeight + 8;
   }
 
   function phase() {
@@ -230,6 +223,7 @@
   S('#stepBack').onclick = () => { t = clamp(t - 1 / 60, T0, TEND); playing = false; S('#play').textContent = '▶ Run'; render(); };
   S('#stepFwd').onclick = () => { t = clamp(t + 1 / 60, T0, TEND); playing = false; S('#play').textContent = '▶ Run'; render(); };
   addEventListener('keydown', e => {
+    if (Microscope.onKey(e)) return;
     if (e.key === 'ArrowRight') { t = clamp(t + 1 / 60, T0, TEND); render(); }
     if (e.key === 'ArrowLeft') { t = clamp(t - 1 / 60, T0, TEND); render(); }
     if (e.key === ' ' && e.target === document.body) { e.preventDefault(); S('#play').click(); }
@@ -294,25 +288,22 @@
       p._st.className = 'st ' + st;
     });
 
-    let nowEv = null;
+    // Event strip: highlight only — never force-scroll the rail during play
     EVENTS.forEach(e => {
       const past = t >= e.t;
       e._el.classList.toggle('past', past);
       e._el.classList.toggle('now', past && t < e.t + 1.2);
-      if (past) nowEv = e;
     });
-    if (nowEv && playing) scrollLogTo(nowEv._el);
 
     MapView.update(t);
     drawHydro();
+    Microscope.setTime(t);
   }
 
   let last = performance.now();
   function loop(now) {
     const dt = (now - last) / 1000; last = now;
     if (playing) {
-      // speed = simulated hours per real second (1m/s = 1/60, etc.)
-      // Slow the breach cascade window a bit more for readability
       const cascade = (t > 4 && t < 12) ? 0.7 : 1;
       t += dt * speed * cascade;
       if (t >= TEND) { t = TEND; playing = false; S('#play').textContent = '▶ Run'; }
@@ -334,13 +325,21 @@
         MapView.init(S('#leaflet'), {
           canals,
           levees: LEVEES,
-          onZoneClick: z => showDos(zoneHtml(z)),
+          onZoneClick: (z, latlng) => {
+            showDos(zoneHtml(z));
+            Microscope.lockAt(z, latlng || L.latLng(z.label[1], z.label[0]));
+          },
           onBreachClick: b => showDos(`<h3>${b.nm}</h3><div class="k">${b.sub}</div><p>${b.dos}</p>`),
           onPumpClick: p => showDos(`<h3>${p.nm}</h3><div class="k">Capacity</div><p>${p.cap}</p><div class="k">Account</div><p>${p.dos}</p>`),
           onHover: (z, latlng, depth) => {
             const tip = S('#hovertip');
-            if (!z) { tip.classList.remove('on'); return; }
+            if (!z) {
+              tip.classList.remove('on');
+              Microscope.previewAt(null);
+              return;
+            }
             onHover(z, latlng, depth);
+            Microscope.previewAt(z, latlng);
             const wrap = S('#mapwrap');
             const pt = MapView.getMap().latLngToContainerPoint(latlng);
             let left = pt.x + 14, top = pt.y + 14;
@@ -350,12 +349,12 @@
             tip.style.top = top + 'px';
           }
         });
+        Microscope.init(S('#microscope'));
         sizeCanvas();
         render();
         S('#boot').classList.add('done');
-        // After layout settles, fix Leaflet size
-        requestAnimationFrame(() => MapView.invalidate());
-        addEventListener('resize', () => { sizeCanvas(); drawHydro(); MapView.invalidate(); });
+        requestAnimationFrame(() => { MapView.invalidate(); Microscope.paint(); });
+        addEventListener('resize', () => { sizeCanvas(); drawHydro(); MapView.invalidate(); Microscope.paint(); });
         requestAnimationFrame(loop);
       })
       .catch(err => {
